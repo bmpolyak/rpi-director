@@ -1,0 +1,136 @@
+2025-08-29 17:32:53,884 - INFO - Starting LED Director in SERVER mode
+2025-08-29 17:32:53,885 - INFO - Settings loaded: {'buttons': {'red': 25, 'yellow': 8, 'green': 7}, 'leds': {'red': 10, 'yellow': 9, 'green': 11}, 'osc': {'server_port': 8000, 'client_addresses': ['192.168.1.100:8000', '192.168.1.101:8000', '192.168.1.102:8000']}}
+2025-08-29 17:32:53,885 - ERROR - Unexpected error: 'MockGPIO' object has no attribute 'LOW'
+2025-08-29 17:33:26,047 - INFO - Starting LED Director in SERVER mode
+2025-08-29 17:33:26,048 - INFO - Settings loaded: {'buttons': {'red': 25, 'yellow': 8, 'green': 7}, 'leds': {'red': 10, 'yellow': 9, 'green': 11}, 'osc': {'server_port': 8000, 'client_addresses': ['192.168.1.100:8000', '192.168.1.101:8000', '192.168.1.102:8000']}}
+2025-08-29 17:33:26,048 - INFO - Setup LED red on GPIO pin 10
+2025-08-29 17:33:26,048 - INFO - Setup LED yellow on GPIO pin 9
+2025-08-29 17:33:26,048 - INFO - Setup LED green on GPIO pin 11
+2025-08-29 17:33:26,048 - INFO - Switched to red LED on GPIO pin 10
+2025-08-29 17:33:26,048 - INFO - Setup button red on GPIO pin 25
+2025-08-29 17:33:26,048 - INFO - Setup button yellow on GPIO pin 8
+2025-08-29 17:33:26,048 - INFO - Setup button green on GPIO pin 7
+2025-08-29 17:33:26,053 - INFO - Setup OSC client for 192.168.1.100:8000
+2025-08-29 17:33:26,053 - INFO - Setup OSC client for 192.168.1.101:8000
+2025-08-29 17:33:26,053 - INFO - Setup OSC client for 192.168.1.102:8000
+2025-08-29 17:33:26,053 - INFO - LED Director Server started. Press buttons or Ctrl+C to stop.
+2025-08-29 17:33:37,416 - INFO - Received signal 2, shutting down gracefully...
+2025-08-29 17:33:37,417 - INFO - Cleaning up GPIO...
+2025-08-29 17:33:37,417 - INFO - Cleaning up GPIO...
+2025-08-29 17:33:45,372 - INFO - Starting LED Director in CLIENT mode
+2025-08-29 17:33:45,372 - INFO - Settings loaded: {'buttons': {'red': 25, 'yellow': 8, 'green': 7}, 'leds': {'red': 10, 'yellow': 9, 'green': 11}, 'osc': {'server_port': 8000, 'client_addresses': ['192.168.1.100:8000', '192.168.1.101:8000', '192.168.1.102:8000']}}
+2025-08-29 17:33:45,373 - INFO - Setup LED red on GPIO pin 10
+2025-08-29 17:33:45,373 - INFO - Setup LED yellow on GPIO pin 9
+2025-08-29 17:33:45,373 - INFO - Setup LED green on GPIO pin 11
+2025-08-29 17:33:45,373 - INFO - Switched to red LED on GPIO pin 10
+2025-08-29 17:33:45,373 - INFO - Setup OSC server on port 8000
+2025-08-29 17:33:45,373 - INFO - OSC server thread started
+2025-08-29 17:33:45,373 - INFO - LED Director Client started. Listening for OSC commands. Press Ctrl+C to stop.
+2025-08-29 17:33:58,398 - INFO - Received signal 2, shutting down gracefully...
+2025-08-29 17:33:58,399 - INFO - Shutting down OSC server...
+2025-08-29 17:33:58,900 - INFO - Cleaning up GPIO...
+2025-08-29 17:33:58,900 - INFO - Shutting down OSC server...
+2025-08-29 17:33:58,901 - INFO - Cleaning up GPIO...
+2025-08-29 17:34:09,584 - INFO - Starting LED Director in CLIENT mode
+2025-08-29 17:34:09,585 - INFO - Settings loaded: {'buttons': {'red': 25, 'yellow': 8, 'green': 7}, 'leds': {'red': 10, 'yellow': 9, 'green': 11}, 'osc': {'server_port': 8000, 'client_addresses': ['192.168.1.100:8000', '192.168.1.101:8000', '192.168.1.102:8000']}}
+2025-08-29 17:34:09,585 - INFO - Setup LED red on GPIO pin 10
+2025-08-29 17:34:09,585 - INFO - Setup LED yellow on GPIO pin 9
+2025-08-29 17:34:09,585 - INFO - Setup LED green on GPIO pin 11
+2025-08-29 17:34:09,585 - INFO - Switched to red LED on GPIO pin 10
+2025-08-29 17:34:09,585 - INFO - Setup OSC server on port 8000
+2025-08-29 17:34:09,585 - INFO - OSC server thread started
+2025-08-29 17:34:09,585 - INFO - LED Director Client started. Listening for OSC commands. Press Ctrl+C to stop.
+2025-08-29 17:34:23,431 - INFO - Received signal 2, shutting down gracefully...
+2025-08-29 17:34:23,432 - INFO - Shutting down OSC server...
+2025-08-29 17:34:23,611 - INFO - Cleaning up GPIO...
+2025-08-29 17:34:23,611 - INFO - Shutting down OSC server...
+2025-08-29 17:34:23,611 - INFO - Cleaning up GPIO...
+2025-08-29 17:34:49,475 - INFO - Starting LED Director in CLIENT mode
+2025-08-29 17:34:49,475 - INFO - Settings loaded: {'buttons': {'red': 25, 'yellow': 8, 'green': 7}, 'leds': {'red': 10, 'yellow': 9, 'green': 11}, 'osc': {'server_port': 8000, 'client_addresses': ['192.168.1.100:8000', '192.168.1.101:8000', '192.168.1.102:8000']}}
+2025-08-29 17:34:49,475 - INFO - Setup LED red on GPIO pin 10
+2025-08-29 17:34:49,475 - INFO - Setup LED yellow on GPIO pin 9
+2025-08-29 17:34:49,475 - INFO - Setup LED green on GPIO pin 11
+2025-08-29 17:34:49,476 - INFO - Switched to red LED on GPIO pin 10
+2025-08-29 17:34:49,476 - INFO - Setup OSC server on port 8000
+2025-08-29 17:34:49,476 - INFO - OSC server thread started
+2025-08-29 17:34:49,476 - INFO - LED Director Client started. Listening for OSC commands. Press Ctrl+C to stop.
+2025-08-29 17:35:01,638 - INFO - Received OSC command to switch to ['yellow'] LED
+2025-08-29 17:36:05,368 - INFO - Received signal 15, shutting down gracefully...
+2025-08-29 17:36:05,368 - INFO - Shutting down OSC server...
+2025-08-29 17:36:05,761 - INFO - Cleaning up GPIO...
+2025-08-29 17:36:05,761 - INFO - Shutting down OSC server...
+2025-08-29 17:36:05,761 - INFO - Cleaning up GPIO...
+2025-08-29 17:36:12,692 - INFO - Starting LED Director in CLIENT mode
+2025-08-29 17:36:12,693 - INFO - Settings loaded: {'buttons': {'red': 25, 'yellow': 8, 'green': 7}, 'leds': {'red': 10, 'yellow': 9, 'green': 11}, 'osc': {'server_port': 8000, 'client_addresses': ['192.168.1.100:8000', '192.168.1.101:8000', '192.168.1.102:8000']}}
+2025-08-29 17:36:12,693 - INFO - Setup LED red on GPIO pin 10
+2025-08-29 17:36:12,693 - INFO - Setup LED yellow on GPIO pin 9
+2025-08-29 17:36:12,693 - INFO - Setup LED green on GPIO pin 11
+2025-08-29 17:36:12,693 - INFO - Switched to red LED on GPIO pin 10
+2025-08-29 17:36:12,693 - INFO - Setup OSC server on port 8000
+2025-08-29 17:36:12,693 - INFO - OSC server thread started
+2025-08-29 17:36:12,693 - INFO - LED Director Client started. Listening for OSC commands. Press Ctrl+C to stop.
+2025-08-29 17:36:15,898 - INFO - Received OSC command to switch to yellow LED
+2025-08-29 17:36:15,898 - INFO - Switched to yellow LED on GPIO pin 9
+2025-08-29 17:36:17,903 - INFO - Received OSC command to switch to green LED
+2025-08-29 17:36:17,903 - INFO - Switched to green LED on GPIO pin 11
+2025-08-29 17:36:19,907 - INFO - Received OSC command to switch to red LED
+2025-08-29 17:36:19,908 - INFO - Switched to red LED on GPIO pin 10
+2025-08-29 17:36:25,448 - INFO - Starting LED Director in CLIENT mode
+2025-08-29 17:36:25,448 - INFO - Settings loaded: {'buttons': {'red': 25, 'yellow': 8, 'green': 7}, 'leds': {'red': 10, 'yellow': 9, 'green': 11}, 'osc': {'server_port': 8000, 'client_addresses': ['192.168.1.100:8000', '192.168.1.101:8000', '192.168.1.102:8000']}}
+2025-08-29 17:36:25,448 - INFO - Setup LED red on GPIO pin 10
+2025-08-29 17:36:25,448 - INFO - Setup LED yellow on GPIO pin 9
+2025-08-29 17:36:25,448 - INFO - Setup LED green on GPIO pin 11
+2025-08-29 17:36:25,448 - INFO - Switched to red LED on GPIO pin 10
+2025-08-29 17:36:25,448 - ERROR - Unexpected error: [Errno 48] Address already in use
+2025-08-29 17:36:48,109 - INFO - Starting LED Director in CLIENT mode
+2025-08-29 17:36:48,109 - INFO - Settings loaded: {'buttons': {'red': 25, 'yellow': 8, 'green': 7}, 'leds': {'red': 10, 'yellow': 9, 'green': 11}, 'osc': {'server_port': 8001, 'client_addresses': ['192.168.1.100:8001', '192.168.1.101:8001', '192.168.1.102:8001']}}
+2025-08-29 17:36:48,109 - INFO - Setup LED red on GPIO pin 10
+2025-08-29 17:36:48,109 - INFO - Setup LED yellow on GPIO pin 9
+2025-08-29 17:36:48,109 - INFO - Setup LED green on GPIO pin 11
+2025-08-29 17:36:48,109 - INFO - Switched to red LED on GPIO pin 10
+2025-08-29 17:36:48,109 - INFO - Setup OSC server on port 8001
+2025-08-29 17:36:48,110 - INFO - OSC server thread started
+2025-08-29 17:36:48,110 - INFO - LED Director Client started. Listening for OSC commands. Press Ctrl+C to stop.
+2025-08-29 17:37:06,914 - INFO - Received signal 2, shutting down gracefully...
+2025-08-29 17:37:06,915 - INFO - Shutting down OSC server...
+2025-08-29 17:37:07,146 - INFO - Cleaning up GPIO...
+2025-08-29 17:37:07,146 - INFO - Shutting down OSC server...
+2025-08-29 17:37:07,146 - INFO - Cleaning up GPIO...
+2025-08-29 17:38:09,167 - INFO - Received signal 15, shutting down gracefully...
+2025-08-29 17:38:09,167 - INFO - Shutting down OSC server...
+2025-08-29 17:38:09,623 - INFO - Cleaning up GPIO...
+2025-08-29 17:38:09,623 - INFO - Shutting down OSC server...
+2025-08-29 17:38:09,623 - INFO - Cleaning up GPIO...
+2025-08-29 17:45:04,208 - INFO - Starting LED Director in SERVER mode
+2025-08-29 17:45:04,209 - INFO - Settings loaded: {'buttons': {'red': 25, 'yellow': 8, 'green': 7}, 'leds': {'red': 10, 'yellow': 9, 'green': 11}, 'osc': {'server_port': 8001, 'client_addresses': ['192.168.1.100:8001', '192.168.1.101:8001', '192.168.1.102:8001']}}
+2025-08-29 17:45:04,209 - INFO - Setup LED red on GPIO pin 10
+2025-08-29 17:45:04,209 - INFO - Setup LED yellow on GPIO pin 9
+2025-08-29 17:45:04,209 - INFO - Setup LED green on GPIO pin 11
+2025-08-29 17:45:04,209 - INFO - Switched to red LED on GPIO pin 10
+2025-08-29 17:45:04,209 - INFO - Setup button red on GPIO pin 25
+2025-08-29 17:45:04,209 - INFO - Setup button yellow on GPIO pin 8
+2025-08-29 17:45:04,209 - INFO - Setup button green on GPIO pin 7
+2025-08-29 17:45:04,213 - INFO - Setup OSC client for 192.168.1.100:8001
+2025-08-29 17:45:04,213 - INFO - Setup OSC client for 192.168.1.101:8001
+2025-08-29 17:45:04,213 - INFO - Setup OSC client for 192.168.1.102:8001
+2025-08-29 17:45:04,214 - INFO - LED Director Server started. Press buttons or Ctrl+C to stop.
+2025-08-29 17:45:18,353 - INFO - Received signal 2, shutting down gracefully...
+2025-08-29 17:45:18,353 - INFO - Cleaning up GPIO...
+2025-08-29 17:45:18,353 - INFO - Cleaning up GPIO...
+2025-08-29 17:45:18,353 - INFO - Cleaning up GPIO...
+2025-08-29 17:45:29,270 - INFO - Starting LED Director in CLIENT mode
+2025-08-29 17:45:29,271 - INFO - Settings loaded: {'buttons': {'red': 25, 'yellow': 8, 'green': 7}, 'leds': {'red': 10, 'yellow': 9, 'green': 11}, 'osc': {'server_port': 8001, 'client_addresses': ['192.168.1.100:8001', '192.168.1.101:8001', '192.168.1.102:8001']}}
+2025-08-29 17:45:29,271 - INFO - Setup LED red on GPIO pin 10
+2025-08-29 17:45:29,271 - INFO - Setup LED yellow on GPIO pin 9
+2025-08-29 17:45:29,271 - INFO - Setup LED green on GPIO pin 11
+2025-08-29 17:45:29,271 - INFO - Switched to red LED on GPIO pin 10
+2025-08-29 17:45:29,271 - INFO - Setup OSC server on port 8001
+2025-08-29 17:45:29,271 - INFO - OSC server thread started
+2025-08-29 17:45:29,271 - INFO - LED Director Client started. Listening for OSC commands. Press Ctrl+C to stop.
+2025-08-29 17:45:53,163 - INFO - Received signal 2, shutting down gracefully...
+2025-08-29 17:45:53,163 - INFO - Shutting down OSC server...
+2025-08-29 17:45:53,317 - INFO - Cleaning up GPIO...
+2025-08-29 17:45:53,317 - INFO - Shutting down OSC server...
+2025-08-29 17:45:53,317 - INFO - Cleaning up GPIO...
+2025-08-29 17:45:53,317 - INFO - Shutting down OSC server...
+2025-08-29 17:45:53,317 - INFO - Cleaning up GPIO...

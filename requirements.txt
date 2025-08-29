@@ -1,0 +1,7 @@
+# Raspberry Pi GPIO library
+# Note: RPi.GPIO is typically pre-installed on Raspberry Pi OS
+# If not available, it can be installed via pip
+RPi.GPIO>=0.7.0
+
+# OSC (Open Sound Control) library for network communication
+python-osc>=1.8.0

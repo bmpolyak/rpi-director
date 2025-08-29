@@ -1,0 +1,14 @@
+[Unit]
+Description=Raspberry Pi LED Director Client
+After=multi-user.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/rpi-director
+ExecStart=/usr/bin/python3 /home/pi/rpi-director/rpi_director.py --mode client
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target
