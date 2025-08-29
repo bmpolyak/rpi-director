@@ -1,14 +1,18 @@
 [Unit]
 Description=Raspberry Pi LED Director Client
 After=multi-user.target
+After=network.target
 
 [Service]
 Type=simple
-User=pi
-WorkingDirectory=/home/pi/rpi-director
-ExecStart=/usr/bin/python3 /home/pi/rpi-director/rpi_director.py --mode client
+User=baston1
+Group=gpio
+WorkingDirectory=/home/baston1/rpi-director
+ExecStart=/home/baston1/rpi-director-venv/bin/python /home/baston1/rpi-director/rpi_director.py --mode client
 Restart=always
 RestartSec=5
+StandardOutput=journal
+StandardError=journal
 
 [Install]
 WantedBy=multi-user.target
