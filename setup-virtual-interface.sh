@@ -44,7 +44,7 @@ fi
 echo "🌐 Setting up virtual interface with IP: $STATIC_IP"
 
 # Check if virtual interface already exists
-if ip link show "$VIRTUAL_INTERFACE" &>/dev/null; then
+if ip addr show "$VIRTUAL_INTERFACE" &>/dev/null; then
     print_warning "Virtual interface $VIRTUAL_INTERFACE already exists"
     
     # Remove existing IP addresses
@@ -56,10 +56,8 @@ if ip link show "$VIRTUAL_INTERFACE" &>/dev/null; then
     
     print_success "Updated virtual interface $VIRTUAL_INTERFACE with IP $STATIC_IP"
 else
-    # Create new virtual interface
-    ip link add link "$PHYSICAL_INTERFACE" name "$VIRTUAL_INTERFACE" type dummy
-    ip addr add "$STATIC_IP/24" dev "$VIRTUAL_INTERFACE"
-    ip link set "$VIRTUAL_INTERFACE" up
+    # Create new virtual interface using ifconfig method (more reliable)
+    ifconfig "$VIRTUAL_INTERFACE" "$STATIC_IP" netmask 255.255.255.0 up
     
     print_success "Created virtual interface $VIRTUAL_INTERFACE with IP $STATIC_IP"
 fi
@@ -73,8 +71,8 @@ After=network.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/bin/bash -c 'ip link add link $PHYSICAL_INTERFACE name $VIRTUAL_INTERFACE type dummy 2>/dev/null || true; ip addr flush dev $VIRTUAL_INTERFACE 2>/dev/null || true; ip addr add $STATIC_IP/24 dev $VIRTUAL_INTERFACE; ip link set $VIRTUAL_INTERFACE up'
-ExecStop=/bin/bash -c 'ip link delete $VIRTUAL_INTERFACE 2>/dev/null || true'
+ExecStart=/sbin/ifconfig $VIRTUAL_INTERFACE $STATIC_IP netmask 255.255.255.0 up
+ExecStop=/sbin/ifconfig $VIRTUAL_INTERFACE down
 
 [Install]
 WantedBy=multi-user.target

@@ -316,15 +316,24 @@ class LEDDirectorClient(LEDDirectorBase):
             self.dispatcher.map("/led/yellow", self.osc_led_handler)
             self.dispatcher.map("/led/green", self.osc_led_handler)
             
-            # Get server port from settings
+            # Get server configuration
+            server_ip = self.osc_settings.get('server_ip', '0.0.0.0')
             server_port = self.osc_settings.get('server_port', 8000)
             
             # Validate port number
             if not isinstance(server_port, int) or server_port < 1024 or server_port > 65535:
                 raise ValueError(f"Invalid server port: {server_port}. Must be between 1024-65535.")
             
-            self.osc_server = ThreadingOSCUDPServer(("0.0.0.0", server_port), self.dispatcher)
-            logger.info(f"Setup OSC server on port {server_port}")
+            # Validate IP address
+            if server_ip != '0.0.0.0':
+                import socket
+                try:
+                    socket.inet_aton(server_ip)
+                except socket.error:
+                    raise ValueError(f"Invalid server IP address: {server_ip}")
+            
+            self.osc_server = ThreadingOSCUDPServer((server_ip, server_port), self.dispatcher)
+            logger.info(f"Setup OSC server on {server_ip}:{server_port}")
             
             # Start OSC server in a separate thread
             self.server_thread = threading.Thread(target=self.osc_server.serve_forever)
