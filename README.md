@@ -46,12 +46,30 @@ sudo python3 setup.py --mode server
 sudo python3 setup.py --mode client
 ```
 
-**The setup script automatically:**
+**🌐 Network Configuration (Recommended for Multi-Pi Setup)**
+
+For reliable OSC communication between multiple Raspberry Pis, set up static IP addresses on virtual interfaces:
+
+```bash
+# On server Pi (assign static IP 192.168.5.101)
+sudo ./setup-virtual-interface.sh 192.168.5.101
+
+# On client Pi 1 (assign static IP 192.168.5.102)
+sudo ./setup-virtual-interface.sh 192.168.5.102
+
+# On client Pi 2 (assign static IP 192.168.5.103)
+sudo ./setup-virtual-interface.sh 192.168.5.103
+```
+
+This creates a virtual interface (eth0:0) with a static IP while keeping the main interface (eth0) on DHCP for internet access.
+
+**The setup scripts automatically:**
 - ✅ Creates virtual environment (`~/rpi-director-venv`)
 - ✅ Installs all dependencies from `requirements.txt`
 - ✅ Sets up GPIO permissions
 - ✅ Installs and starts systemd service
 - ✅ Tests the installation
+- ✅ (Virtual interface) Creates persistent static IP alias
 
 ## Hardware Setup
 
@@ -137,11 +155,12 @@ Edit `settings.json` to configure pins and network settings:
         "green": 11
     },
     "osc": {
+        "server_ip": "0.0.0.0",
         "server_port": 8001,
         "client_addresses": [
-            "192.168.1.100:8001",
-            "192.168.1.101:8001",
-            "192.168.1.102:8001"
+            "192.168.5.102:8001",
+            "192.168.5.103:8001",
+            "192.168.5.104:8001"
         ]
     }
 }
@@ -150,8 +169,41 @@ Edit `settings.json` to configure pins and network settings:
 ### Configuration Options
 - `buttons`: GPIO pin numbers for button inputs (server mode only)
 - `leds`: GPIO pin numbers for LED outputs
+- `osc.server_ip`: IP address for OSC server to bind to:
+  - `"0.0.0.0"` - Listen on all interfaces (DHCP + static)
+  - `"192.168.5.101"` - Listen only on static IP (recommended)
 - `osc.server_port`: Port for OSC server to listen on (client mode)
-- `osc.client_addresses`: List of IP:port addresses to send OSC commands to (server mode)
+- `osc.client_addresses`: List of static IP:port addresses to send OSC commands to (server mode)
+
+### Network Configuration Examples
+
+**For static IP setup (recommended):**
+```json
+{
+    "osc": {
+        "server_ip": "192.168.5.101",    // Server Pi static IP
+        "server_port": 8001,
+        "client_addresses": [
+            "192.168.5.102:8001",        // Client Pi 1 static IP
+            "192.168.5.103:8001"         // Client Pi 2 static IP
+        ]
+    }
+}
+```
+
+**For DHCP-only setup:**
+```json
+{
+    "osc": {
+        "server_ip": "0.0.0.0",         // Listen on all interfaces
+        "server_port": 8001,
+        "client_addresses": [
+            "192.168.1.100:8001",       // Update with actual DHCP IPs
+            "192.168.1.101:8001"
+        ]
+    }
+}
+```
 
 **Note:** If you have GPIO edge detection issues, try alternative pin numbers like 17, 27, 22, or 5, 6, 13.
 
@@ -232,10 +284,52 @@ The system uses OSC (Open Sound Control) protocol for network communication:
 - `/led/yellow` - Switch to yellow LED  
 - `/led/green` - Switch to green LED
 
-### Network Setup
+### Network Setup Options
+
+#### Option 1: Virtual Interface with Static IPs (Recommended)
+
+Use the included script to set up dual network interfaces:
+
+```bash
+# Server Pi
+sudo ./setup-virtual-interface.sh 192.168.5.101
+
+# Client Pi 1  
+sudo ./setup-virtual-interface.sh 192.168.5.102
+
+# Client Pi 2
+sudo ./setup-virtual-interface.sh 192.168.5.103
+```
+
+**Benefits:**
+- ✅ Reliable static IPs for OSC communication
+- ✅ DHCP still works for internet access
+- ✅ No network configuration conflicts
+- ✅ Automatic persistence across reboots
+
+**Network interfaces after setup:**
+- `eth0`: DHCP IP (e.g., 192.168.1.45) - for internet
+- `eth0:0`: Static IP (e.g., 192.168.5.101) - for OSC
+
+#### Option 2: DHCP Only (Simple but less reliable)
+
 1. Ensure all devices are on the same network
-2. Configure firewall to allow OSC traffic on the specified port (default: 8001)
-3. Update IP addresses in `settings.json` for your network setup
+2. Find each Pi's IP address with `ip addr show eth0`
+3. Update `client_addresses` in `settings.json` with actual IPs
+4. Configure firewall to allow OSC traffic on port 8001
+
+**Note:** DHCP IPs can change, requiring settings.json updates.
+
+### Firewall Configuration
+
+Allow OSC traffic on your chosen port:
+```bash
+# Ubuntu/Debian
+sudo ufw allow 8001/udp
+
+# Or using iptables
+sudo iptables -A INPUT -p udp --dport 8001 -j ACCEPT
+```
 
 ## Operation
 
@@ -276,6 +370,14 @@ The system uses OSC (Open Sound Control) protocol for network communication:
 - Verify firewall settings allow UDP traffic on port 8001
 - Ensure IP addresses in `settings.json` are correct and reachable
 - Test with: `ping target-ip-address`
+- If using virtual interfaces, verify they're up: `ip addr show eth0:0`
+
+**Virtual Interface Issues:**
+- Check if interface exists: `ip addr show eth0:0`
+- Check systemd service: `sudo systemctl status virtual-eth.service`
+- Restart virtual interface: `sudo systemctl restart virtual-eth.service`
+- Test connectivity to static IP: `ping 192.168.5.101`
+- Remove virtual interface: `sudo systemctl disable virtual-eth.service && sudo ifconfig eth0:0 down`
 
 **Service Won't Start:**
 - Check service status: `sudo systemctl status rpi-director.service`
@@ -323,17 +425,26 @@ print('OSC message sent')
 
 ```
 rpi-director/
-├── rpi_director.py              # Main Python script
-├── settings.json               # Pin and network configuration
-├── requirements.txt            # Python dependencies
-├── setup.py                   # Automated setup script
-├── gpio_test.py               # GPIO pin testing utility
-├── rpi-director.service       # Systemd service file (server mode)
-├── rpi-director-client.service # Systemd service file (client mode)
-└── README.md                  # This file
+├── rpi_director.py                # Main Python script
+├── settings.json                  # Pin and network configuration
+├── requirements.txt               # Python dependencies
+├── setup.py                      # Automated setup script
+├── setup-virtual-interface.sh    # Virtual interface setup script
+├── gpio_test.py                  # GPIO pin testing utility
+├── rpi-director.service          # Systemd service file (server mode)
+├── rpi-director-client.service   # Systemd service file (client mode)
+├── NETWORK-SETUP.md              # Network configuration guide
+└── README.md                     # This file
 ```
 
 ## Development
+
+### Testing Virtual Interface Setup
+Test the virtual interface script on your development machine:
+```bash
+# Test IP validation (will fail safely on non-Pi systems)
+sudo ./setup-virtual-interface.sh 192.168.5.101
+```
 
 ### Testing GPIO Pins
 Use the included test utility to verify GPIO pins work:

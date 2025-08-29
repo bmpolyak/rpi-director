@@ -44,20 +44,19 @@ fi
 echo "🌐 Setting up virtual interface with IP: $STATIC_IP"
 
 # Check if virtual interface already exists
-if ip addr show "$VIRTUAL_INTERFACE" &>/dev/null; then
+if ip addr show "$VIRTUAL_INTERFACE" &>/dev/null 2>&1; then
     print_warning "Virtual interface $VIRTUAL_INTERFACE already exists"
     
-    # Remove existing IP addresses
-    ip addr flush dev "$VIRTUAL_INTERFACE" 2>/dev/null || true
+    # Remove existing IP addresses on the alias interface
+    ip addr del "$STATIC_IP/24" dev "$VIRTUAL_INTERFACE" 2>/dev/null || true
     
-    # Add new IP
-    ip addr add "$STATIC_IP/24" dev "$VIRTUAL_INTERFACE"
-    ip link set "$VIRTUAL_INTERFACE" up
+    # Add new IP to the main interface with alias label
+    ip addr add "$STATIC_IP/24" dev "$PHYSICAL_INTERFACE" label "$VIRTUAL_INTERFACE"
     
     print_success "Updated virtual interface $VIRTUAL_INTERFACE with IP $STATIC_IP"
 else
-    # Create new virtual interface using ifconfig method (more reliable)
-    ifconfig "$VIRTUAL_INTERFACE" "$STATIC_IP" netmask 255.255.255.0 up
+    # Create new virtual interface by adding IP with alias label to main interface
+    ip addr add "$STATIC_IP/24" dev "$PHYSICAL_INTERFACE" label "$VIRTUAL_INTERFACE"
     
     print_success "Created virtual interface $VIRTUAL_INTERFACE with IP $STATIC_IP"
 fi
@@ -71,8 +70,8 @@ After=network.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
-ExecStart=/sbin/ifconfig $VIRTUAL_INTERFACE $STATIC_IP netmask 255.255.255.0 up
-ExecStop=/sbin/ifconfig $VIRTUAL_INTERFACE down
+ExecStart=/sbin/ip addr add $STATIC_IP/24 dev $PHYSICAL_INTERFACE label $VIRTUAL_INTERFACE
+ExecStop=/sbin/ip addr del $STATIC_IP/24 dev $PHYSICAL_INTERFACE label $VIRTUAL_INTERFACE
 
 [Install]
 WantedBy=multi-user.target
