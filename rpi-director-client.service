@@ -5,10 +5,10 @@ After=network.target
 
 [Service]
 Type=simple
-User=baston1
+User=boston
 Group=gpio
-WorkingDirectory=/home/baston1/rpi-director
-ExecStart=/home/baston1/rpi-director-venv/bin/python /home/baston1/rpi-director/rpi_director.py --mode client
+WorkingDirectory=/home/boston/rpi-director
+ExecStart=/home/boston/rpi-director-venv/bin/python /home/boston/rpi-director/rpi_director.py --mode client
 Restart=always
 RestartSec=5
 StandardOutput=journal
