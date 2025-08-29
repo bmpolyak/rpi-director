@@ -53,8 +53,8 @@ def main():
     print("GPIO Pin Test - Starting...")
     print("=" * 50)
     
-    # Your current pin configuration
-    button_pins = {"red": 25, "yellow": 8, "green": 7}
+    # Updated pin configuration to match new settings.json
+    button_pins = {"red": 2, "yellow": 3, "green": 4}
     led_pins = {"red": 10, "yellow": 9, "green": 11}
     
     GPIO.setmode(GPIO.BCM)
