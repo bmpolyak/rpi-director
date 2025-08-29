@@ -110,7 +110,16 @@ class LEDDirectorBase:
     def setup_gpio(self):
         """Setup GPIO pins for LEDs."""
         try:
+            # Ensure clean GPIO state
             GPIO.setmode(GPIO.BCM)
+            
+            # Clean up any existing GPIO state for our pins
+            all_pins = list(self.button_pins.values()) + list(self.led_pins.values())
+            for pin in all_pins:
+                try:
+                    GPIO.cleanup(pin)
+                except RuntimeWarning:
+                    pass  # Pin wasn't set up, ignore warning
             
             # Setup LED pins as outputs
             for color, pin in self.led_pins.items():
@@ -172,7 +181,14 @@ class LEDDirectorServer(LEDDirectorBase):
         # Setup button pins as inputs with pull-up resistors
         for color, pin in self.button_pins.items():
             try:
+                # Clean up any existing state for this pin
+                try:
+                    GPIO.cleanup(pin)
+                except RuntimeWarning:
+                    pass  # Pin wasn't set up, ignore warning
+                
                 GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+                
                 # Use a proper callback that captures the color correctly
                 callback_func = self.create_button_callback(color)
                 GPIO.add_event_detect(
@@ -184,11 +200,12 @@ class LEDDirectorServer(LEDDirectorBase):
                 logger.info(f"Setup button {color} on GPIO pin {pin}")
             except RuntimeError as e:
                 if "Failed to add edge detection" in str(e):
-                    logger.error(f"GPIO permission denied for button {color} on pin {pin}")
-                    logger.error("This usually means you need to:")
-                    logger.error("  1. Run with sudo: sudo python3 rpi_director.py --mode server")
-                    logger.error("  2. Or add user to gpio group: sudo usermod -a -G gpio $USER && logout")
-                    logger.error("  3. Or check if another process is using GPIO")
+                    logger.error(f"GPIO pin {pin} conflict for button {color}")
+                    logger.error("Possible causes:")
+                    logger.error("  1. Pin already in use by another process")
+                    logger.error("  2. Hardware issue with the pin")
+                    logger.error("  3. Previous GPIO state not cleaned up")
+                    logger.error(f"Try: sudo fuser -k /dev/gpiomem")
                 else:
                     logger.error(f"Failed to setup button {color} on GPIO pin {pin}: {e}")
                 raise
