@@ -179,6 +179,8 @@ class LEDDirectorServer(LEDDirectorBase):
         
     def setup_buttons(self):
         """Setup button pins as inputs with polling (fallback for edge detection issues)."""
+        self._polling_buttons = []  # Track which buttons need polling
+        
         # Setup button pins as inputs with pull-up resistors
         for color, pin in self.button_pins.items():
             try:
@@ -191,7 +193,7 @@ class LEDDirectorServer(LEDDirectorBase):
                 GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
                 
                 # Initialize button state (True = not pressed due to pull-up)
-                self.button_states[color] = True
+                self.button_states[color] = GPIO.input(pin)
                 
                 # Try edge detection first, fall back to polling if it fails
                 try:
@@ -206,7 +208,7 @@ class LEDDirectorServer(LEDDirectorBase):
                 except RuntimeError as e:
                     if "Failed to add edge detection" in str(e):
                         logger.warning(f"Edge detection failed for button {color} on pin {pin}, using polling instead")
-                        # Don't raise - we'll use polling in the main loop
+                        self._polling_buttons.append(color)
                     else:
                         logger.error(f"Failed to setup button {color} on GPIO pin {pin}: {e}")
                         raise
@@ -255,16 +257,14 @@ class LEDDirectorServer(LEDDirectorBase):
         """Main loop to keep the server running."""
         logger.info("LED Director Server started. Press buttons or Ctrl+C to stop.")
         
-        # Check if any buttons are using polling (no edge detection)
-        polling_needed = False
-        for color, pin in self.button_pins.items():
-            try:
-                # Test if edge detection is working by checking if callback was set
-                GPIO.event_detected(pin)  # This will work if edge detection is active
-            except RuntimeError:
-                # Edge detection not working for this pin
-                polling_needed = True
-                break
+        # Check if we need to use polling (edge detection failed)
+        polling_needed = any(color in getattr(self, '_polling_buttons', []) 
+                           for color in self.button_pins.keys())
+        
+        if not hasattr(self, '_polling_buttons'):
+            # If no _polling_buttons attribute, assume all need polling since edge detection failed
+            polling_needed = True
+            self._polling_buttons = list(self.button_pins.keys())
         
         if polling_needed:
             logger.info("Using button polling due to edge detection issues")
@@ -283,16 +283,17 @@ class LEDDirectorServer(LEDDirectorBase):
     def poll_buttons(self):
         """Poll button states manually (fallback when edge detection fails)."""
         for color, pin in self.button_pins.items():
-            current_state = GPIO.input(pin)  # False = pressed (due to pull-up)
-            previous_state = self.button_states[color]
-            
-            # Detect button press (transition from True to False)
-            if previous_state and not current_state:
-                logger.info(f"{color.capitalize()} button pressed on GPIO pin {pin}")
-                self.switch_led(color)
-                self.send_osc_command(color)
-            
-            self.button_states[color] = current_state
+            if color in self._polling_buttons:  # Only poll buttons that need it
+                current_state = GPIO.input(pin)  # False = pressed (due to pull-up)
+                previous_state = self.button_states[color]
+                
+                # Detect button press (transition from True to False)
+                if previous_state and not current_state:
+                    logger.info(f"{color.capitalize()} button pressed on GPIO pin {pin}")
+                    self.switch_led(color)
+                    self.send_osc_command(color)
+                
+                self.button_states[color] = current_state
 
 
 class LEDDirectorClient(LEDDirectorBase):
