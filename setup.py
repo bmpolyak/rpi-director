@@ -59,7 +59,17 @@ def setup_venv(user_home, real_user):
     if not run_command("apt update", "Updating package list"):
         return False
     
-    if not run_command("apt install -y python3-venv python3-full", "Installing Python venv support"):
+    # Install Python development tools and dependencies for RPi.GPIO compilation
+    packages = [
+        "python3-venv",
+        "python3-full", 
+        "python3-dev",
+        "python3-pip",
+        "build-essential",
+        "gcc"
+    ]
+    package_list = " ".join(packages)
+    if not run_command(f"apt install -y {package_list}", "Installing Python development tools and dependencies"):
         return False
     
     # Create virtual environment as the real user
@@ -70,7 +80,36 @@ def setup_venv(user_home, real_user):
     # Install requirements
     pip_cmd = f"sudo -u {real_user} {venv_path}/bin/pip install -r {script_dir}/requirements.txt"
     if not run_command(pip_cmd, "Installing Python dependencies"):
-        return False
+        print("⚠️  Pip installation failed, trying alternative approach...")
+        
+        # Try installing RPi.GPIO from system packages first
+        if not run_command("apt install -y python3-rpi.gpio", "Installing RPi.GPIO from system packages"):
+            return False
+        
+        # Create a requirements file without RPi.GPIO for retry
+        temp_requirements = script_dir / "requirements_temp.txt"
+        with open(script_dir / "requirements.txt", 'r') as f:
+            original_requirements = f.read()
+        
+        # Filter out RPi.GPIO from requirements
+        filtered_requirements = []
+        for line in original_requirements.strip().split('\n'):
+            if not line.strip().lower().startswith('rpi.gpio'):
+                filtered_requirements.append(line)
+        
+        with open(temp_requirements, 'w') as f:
+            f.write('\n'.join(filtered_requirements))
+        
+        # Try installing remaining packages
+        pip_retry_cmd = f"sudo -u {real_user} {venv_path}/bin/pip install -r {temp_requirements}"
+        if not run_command(pip_retry_cmd, "Installing remaining Python dependencies"):
+            # Clean up temp file
+            temp_requirements.unlink(missing_ok=True)
+            return False
+        
+        # Clean up temp file
+        temp_requirements.unlink(missing_ok=True)
+        print("✅ Used system RPi.GPIO package as fallback")
     
     print(f"✅ Virtual environment created at {venv_path}")
     return True
