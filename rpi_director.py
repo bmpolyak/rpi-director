@@ -110,6 +110,9 @@ class LEDDirectorBase:
     def setup_gpio(self):
         """Setup GPIO pins for LEDs."""
         try:
+            # Suppress GPIO warnings for cleaner output
+            GPIO.setwarnings(False)
+            
             # Ensure clean GPIO state
             GPIO.setmode(GPIO.BCM)
             
@@ -375,6 +378,9 @@ def main():
     # Check if running on Raspberry Pi and warn about permissions
     try:
         import RPi.GPIO as TestGPIO  # Test if we have real GPIO access
+        # Suppress warnings for the permission test
+        TestGPIO.setwarnings(False)
+        
         # Check if we can access GPIO (requires root or gpio group membership)
         try:
             TestGPIO.setmode(TestGPIO.BCM)

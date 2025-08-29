@@ -283,6 +283,12 @@ The system uses OSC (Open Sound Control) protocol for network communication:
 - Verify virtual environment exists: `ls ~/rpi-director-venv/bin/python`
 - Test manually first: `~/rpi-director-venv/bin/python ~/rpi-director/rpi_director.py --mode server`
 
+**Python Package Installation Errors:**
+- If `RPi.GPIO` compilation fails during setup, the script automatically tries system packages
+- Missing `Python.h` error means development headers weren't installed
+- The setup script automatically installs required packages: `python3-dev`, `build-essential`
+- If issues persist, manually install: `sudo apt install python3-rpi.gpio python3-osc`
+
 **GPIO Already In Use:**
 - Stop other GPIO services: `sudo systemctl list-units | grep -i gpio`
 - Kill processes using GPIO: `sudo fuser -k /dev/gpiomem`
