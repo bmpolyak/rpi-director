@@ -182,6 +182,16 @@ class LEDDirectorServer(LEDDirectorBase):
                     bouncetime=200  # 200ms debounce
                 )
                 logger.info(f"Setup button {color} on GPIO pin {pin}")
+            except RuntimeError as e:
+                if "Failed to add edge detection" in str(e):
+                    logger.error(f"GPIO permission denied for button {color} on pin {pin}")
+                    logger.error("This usually means you need to:")
+                    logger.error("  1. Run with sudo: sudo python3 rpi_director.py --mode server")
+                    logger.error("  2. Or add user to gpio group: sudo usermod -a -G gpio $USER && logout")
+                    logger.error("  3. Or check if another process is using GPIO")
+                else:
+                    logger.error(f"Failed to setup button {color} on GPIO pin {pin}: {e}")
+                raise
             except Exception as e:
                 logger.error(f"Failed to setup button {color} on GPIO pin {pin}: {e}")
                 raise
@@ -317,12 +327,16 @@ def main():
         # Check if we can access GPIO (requires root or gpio group membership)
         try:
             TestGPIO.setmode(TestGPIO.BCM)
-            TestGPIO.cleanup()
+            # Only cleanup if we actually set up something, ignore warning if nothing to clean up
+            try:
+                TestGPIO.cleanup()
+            except RuntimeWarning:
+                pass  # Ignore "nothing to clean up" warning
         except Exception as e:
-            print("Warning: GPIO access may be restricted. You may need to:")
-            print("  1. Run with sudo: sudo python3 rpi_director.py --mode server")
-            print("  2. Or add user to gpio group: sudo usermod -a -G gpio $USER")
-            print(f"  Error: {e}")
+            logger.warning("GPIO access may be restricted. You may need to:")
+            logger.warning("  1. Run with sudo: sudo python3 rpi_director.py --mode server")
+            logger.warning("  2. Or add user to gpio group: sudo usermod -a -G gpio $USER")
+            logger.warning(f"  Error: {e}")
     except ImportError:
         pass  # Not on Raspberry Pi, script will exit at import check
     
