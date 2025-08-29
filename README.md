@@ -9,6 +9,7 @@ A Python script that runs in the background on a Raspberry Pi and manages LED st
 - Controls corresponding LEDs on configurable GPIO pins
 - Sends OSC commands to multiple client devices over the network
 - Red LED lights up by default on startup
+- Automatic fallback to polling if GPIO edge detection fails
 
 ### Client Mode
 - Listens for OSC commands over the network
@@ -20,17 +21,46 @@ A Python script that runs in the background on a Raspberry Pi and manages LED st
 - Only one LED is lit at a time
 - Runs as a background service
 - Configurable pin assignments and network settings via JSON settings file
+- Robust GPIO handling with automatic polling fallback
 - Logging support
 - Graceful shutdown handling
+
+## Quick Setup
+
+**🚀 Automated Installation (Recommended)**
+
+Copy the project to your Raspberry Pi and run the setup script:
+
+```bash
+# Copy project files to Raspberry Pi
+scp -r rpi-director/ your-user@your-pi-ip:/home/your-user/
+
+# SSH to your Pi and run setup
+ssh your-user@your-pi-ip
+cd ~/rpi-director
+
+# For server mode (listens to buttons, sends OSC)
+sudo python3 setup.py --mode server
+
+# For client mode (listens to OSC, controls LEDs)  
+sudo python3 setup.py --mode client
+```
+
+**The setup script automatically:**
+- ✅ Creates virtual environment (`~/rpi-director-venv`)
+- ✅ Installs all dependencies from `requirements.txt`
+- ✅ Sets up GPIO permissions
+- ✅ Installs and starts systemd service
+- ✅ Tests the installation
 
 ## Hardware Setup
 
 ### Default Pin Configuration
-- **Buttons:** Red (GPIO 25), Yellow (GPIO 8), Green (GPIO 7)
+- **Buttons:** Red (GPIO 2), Yellow (GPIO 3), Green (GPIO 4)
 - **LEDs:** Red (GPIO 10), Yellow (GPIO 9), Green (GPIO 11)
 
 ### Physical Pin Mapping
-- **Buttons:** Red (Pin 22), Yellow (Pin 24), Green (Pin 26)
+- **Buttons:** Red (Pin 3), Yellow (Pin 5), Green (Pin 7)
 - **LEDs:** Red (Pin 19), Yellow (Pin 21), Green (Pin 23)
 
 ### Wiring
@@ -38,27 +68,56 @@ A Python script that runs in the background on a Raspberry Pi and manages LED st
 2. Connect LEDs with appropriate resistors (typically 330Ω) between the configured GPIO pins and GND
 3. Ensure proper grounding for all components
 
-## Installation
+**Note:** If you experience GPIO edge detection issues, the script automatically falls back to reliable button polling.
 
-1. Copy the project files to your Raspberry Pi:
+## Manual Installation (Alternative)
+
+If you prefer manual setup or the automated script doesn't work:
+
+1. **Copy files to Raspberry Pi:**
    ```bash
-   scp -r rpi-director/ pi@your-pi-ip:/home/pi/
+   scp -r rpi-director/ your-user@your-pi-ip:/home/your-user/
    ```
 
-2. SSH into your Raspberry Pi and navigate to the project directory:
+2. **SSH and create virtual environment:**
    ```bash
-   ssh pi@your-pi-ip
-   cd /home/pi/rpi-director
+   ssh your-user@your-pi-ip
+   cd ~/rpi-director
+   
+   # Install system packages
+   sudo apt update
+   sudo apt install python3-venv python3-full
+   
+   # Create virtual environment
+   python3 -m venv ~/rpi-director-venv
+   source ~/rpi-director-venv/bin/activate
+   
+   # Install dependencies
+   pip install -r requirements.txt
    ```
 
-3. Install dependencies:
+3. **Setup GPIO permissions:**
    ```bash
-   pip3 install -r requirements.txt
+   sudo usermod -a -G gpio $USER
+   sudo chown root:gpio /dev/gpiomem
+   sudo chmod g+rw /dev/gpiomem
    ```
 
-4. Make the script executable:
+4. **Test manually:**
    ```bash
-   chmod +x rpi_director.py
+   # Activate venv and test
+   source ~/rpi-director-venv/bin/activate
+   python rpi_director.py --mode server  # or --mode client
+   ```
+
+5. **Install systemd service (optional):**
+   ```bash
+   sudo cp rpi-director.service /etc/systemd/system/        # For server
+   sudo cp rpi-director-client.service /etc/systemd/system/ # For client
+   
+   sudo systemctl daemon-reload
+   sudo systemctl enable rpi-director.service    # or rpi-director-client.service
+   sudo systemctl start rpi-director.service     # or rpi-director-client.service
    ```
 
 ## Configuration
@@ -68,9 +127,9 @@ Edit `settings.json` to configure pins and network settings:
 ```json
 {
     "buttons": {
-        "red": 25,
-        "yellow": 8,
-        "green": 7
+        "red": 2,
+        "yellow": 3,
+        "green": 4
     },
     "leds": {
         "red": 10,
@@ -78,11 +137,11 @@ Edit `settings.json` to configure pins and network settings:
         "green": 11
     },
     "osc": {
-        "server_port": 8000,
+        "server_port": 8001,
         "client_addresses": [
-            "192.168.1.100:8000",
-            "192.168.1.101:8000",
-            "192.168.1.102:8000"
+            "192.168.1.100:8001",
+            "192.168.1.101:8001",
+            "192.168.1.102:8001"
         ]
     }
 }
@@ -94,21 +153,47 @@ Edit `settings.json` to configure pins and network settings:
 - `osc.server_port`: Port for OSC server to listen on (client mode)
 - `osc.client_addresses`: List of IP:port addresses to send OSC commands to (server mode)
 
+**Note:** If you have GPIO edge detection issues, try alternative pin numbers like 17, 27, 22, or 5, 6, 13.
+
 ## Usage
 
-### Running Manually
+### Using the Setup Script (Recommended)
+
+After running `sudo python3 setup.py --mode <server|client>`, your service is automatically installed and running.
+
+**Useful commands provided by setup script:**
+```bash
+# Check service status
+sudo systemctl status rpi-director.service          # Server
+sudo systemctl status rpi-director-client.service   # Client
+
+# View live logs  
+sudo journalctl -u rpi-director.service -f          # Server
+sudo journalctl -u rpi-director-client.service -f   # Client
+
+# Control services
+sudo systemctl stop rpi-director.service            # Stop server
+sudo systemctl start rpi-director.service           # Start server
+sudo systemctl restart rpi-director.service         # Restart server
+```
+
+### Manual Testing
 
 **Server Mode** (listens to buttons, sends OSC commands):
 ```bash
-python3 rpi_director.py --mode server
+# Activate virtual environment first
+source ~/rpi-director-venv/bin/activate
+python rpi_director.py --mode server
 ```
 
 **Client Mode** (listens to OSC commands):
 ```bash
-python3 rpi_director.py --mode client
+# Activate virtual environment first
+source ~/rpi-director-venv/bin/activate
+python rpi_director.py --mode client
 ```
 
-### Running as Services
+### Manual Service Installation (if not using setup script)
 
 #### Server Mode Service
 
@@ -138,26 +223,6 @@ python3 rpi_director.py --mode client
    sudo systemctl start rpi-director-client.service
    ```
 
-### Service Management
-
-Check status:
-```bash
-sudo systemctl status rpi-director.service        # Server
-sudo systemctl status rpi-director-client.service # Client
-```
-
-View logs:
-```bash
-sudo journalctl -u rpi-director.service -f        # Server
-sudo journalctl -u rpi-director-client.service -f # Client
-```
-
-Stop services:
-```bash
-sudo systemctl stop rpi-director.service          # Server
-sudo systemctl stop rpi-director-client.service   # Client
-```
-
 ## Network Communication
 
 The system uses OSC (Open Sound Control) protocol for network communication:
@@ -169,7 +234,7 @@ The system uses OSC (Open Sound Control) protocol for network communication:
 
 ### Network Setup
 1. Ensure all devices are on the same network
-2. Configure firewall to allow OSC traffic on the specified port (default: 8000)
+2. Configure firewall to allow OSC traffic on the specified port (default: 8001)
 3. Update IP addresses in `settings.json` for your network setup
 
 ## Operation
@@ -189,14 +254,64 @@ The system uses OSC (Open Sound Control) protocol for network communication:
 
 ## Troubleshooting
 
-- Ensure you're running the script with appropriate permissions for GPIO access
-- Check wiring connections if buttons or LEDs don't respond
-- Review logs for error messages
-- Verify pin numbers in `settings.json` match your hardware setup
-- Make sure no other processes are using the same GPIO pins
-- Check network connectivity if OSC commands aren't working
-- Verify firewall settings allow traffic on the OSC port
-- Ensure IP addresses in settings are correct and reachable
+### Common Issues
+
+**"Failed to add edge detection" Error:**
+- This is automatically handled by the script with polling fallback
+- If you see this warning, button polling is being used instead
+- Buttons will still work, just with slightly higher CPU usage
+
+**Buttons Not Working:**
+- Check wiring connections
+- Verify pin numbers in `settings.json` match your hardware
+- Try alternative GPIO pins (2, 3, 4 work reliably)
+- Ensure you're in the `gpio` group: `groups $USER`
+
+**Permission Errors:**
+- Run setup script with sudo: `sudo python3 setup.py --mode server`
+- Or manually: `sudo usermod -a -G gpio $USER` then logout/login
+
+**OSC Network Issues:**
+- Check network connectivity between devices
+- Verify firewall settings allow UDP traffic on port 8001
+- Ensure IP addresses in `settings.json` are correct and reachable
+- Test with: `ping target-ip-address`
+
+**Service Won't Start:**
+- Check service status: `sudo systemctl status rpi-director.service`
+- View detailed logs: `sudo journalctl -u rpi-director.service -n 50`
+- Verify virtual environment exists: `ls ~/rpi-director-venv/bin/python`
+- Test manually first: `~/rpi-director-venv/bin/python ~/rpi-director/rpi_director.py --mode server`
+
+**GPIO Already In Use:**
+- Stop other GPIO services: `sudo systemctl list-units | grep -i gpio`
+- Kill processes using GPIO: `sudo fuser -k /dev/gpiomem`
+- Reboot if necessary
+
+### Debug Commands
+
+```bash
+# Test GPIO pin directly
+sudo python3 -c "
+import RPi.GPIO as GPIO
+GPIO.setmode(GPIO.BCM)
+GPIO.setup(2, GPIO.IN, pull_up_down=GPIO.PUD_UP)
+print('Pin 2 value:', GPIO.input(2))
+GPIO.cleanup()
+"
+
+# Test OSC client
+sudo python3 -c "
+from pythonosc import udp_client
+client = udp_client.SimpleUDPClient('127.0.0.1', 8001)
+client.send_message('/led/yellow', 1)
+print('OSC message sent')
+"
+
+# Check virtual environment
+~/rpi-director-venv/bin/python --version
+~/rpi-director-venv/bin/pip list | grep -E "(osc|GPIO)"
+```
 
 ## File Structure
 
@@ -205,7 +320,38 @@ rpi-director/
 ├── rpi_director.py              # Main Python script
 ├── settings.json               # Pin and network configuration
 ├── requirements.txt            # Python dependencies
+├── setup.py                   # Automated setup script
+├── gpio_test.py               # GPIO pin testing utility
 ├── rpi-director.service       # Systemd service file (server mode)
 ├── rpi-director-client.service # Systemd service file (client mode)
 └── README.md                  # This file
+```
+
+## Development
+
+### Testing GPIO Pins
+Use the included test utility to verify GPIO pins work:
+```bash
+source ~/rpi-director-venv/bin/activate
+sudo python gpio_test.py
+```
+
+This will test each configured pin individually and suggest alternatives if any fail.
+
+### Logging
+- **Service logs**: `sudo journalctl -u rpi-director.service -f`
+- **Manual run**: Logs appear in console and `./rpi-director.log`
+- **Systemd service**: Logs to systemd journal
+
+### Virtual Environment
+All Python dependencies are isolated in `~/rpi-director-venv/`:
+```bash
+# Activate environment
+source ~/rpi-director-venv/bin/activate
+
+# Install additional packages
+pip install package-name
+
+# Deactivate
+deactivate
 ```
