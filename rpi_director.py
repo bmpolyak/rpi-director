@@ -173,11 +173,12 @@ class LEDDirectorServer(LEDDirectorBase):
     
     def __init__(self, settings_file='settings.json'):
         super().__init__(settings_file)
+        self.button_states = {}  # Track button states for polling
         self.setup_buttons()
         self.setup_osc_clients()
         
     def setup_buttons(self):
-        """Setup button pins as inputs with event detection."""
+        """Setup button pins as inputs with polling (fallback for edge detection issues)."""
         # Setup button pins as inputs with pull-up resistors
         for color, pin in self.button_pins.items():
             try:
@@ -189,26 +190,26 @@ class LEDDirectorServer(LEDDirectorBase):
                 
                 GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
                 
-                # Use a proper callback that captures the color correctly
-                callback_func = self.create_button_callback(color)
-                GPIO.add_event_detect(
-                    pin, 
-                    GPIO.FALLING, 
-                    callback=callback_func,
-                    bouncetime=200  # 200ms debounce
-                )
-                logger.info(f"Setup button {color} on GPIO pin {pin}")
-            except RuntimeError as e:
-                if "Failed to add edge detection" in str(e):
-                    logger.error(f"GPIO pin {pin} conflict for button {color}")
-                    logger.error("Possible causes:")
-                    logger.error("  1. Pin already in use by another process")
-                    logger.error("  2. Hardware issue with the pin")
-                    logger.error("  3. Previous GPIO state not cleaned up")
-                    logger.error(f"Try: sudo fuser -k /dev/gpiomem")
-                else:
-                    logger.error(f"Failed to setup button {color} on GPIO pin {pin}: {e}")
-                raise
+                # Initialize button state (True = not pressed due to pull-up)
+                self.button_states[color] = True
+                
+                # Try edge detection first, fall back to polling if it fails
+                try:
+                    callback_func = self.create_button_callback(color)
+                    GPIO.add_event_detect(
+                        pin, 
+                        GPIO.FALLING, 
+                        callback=callback_func,
+                        bouncetime=200  # 200ms debounce
+                    )
+                    logger.info(f"Setup button {color} on GPIO pin {pin} with edge detection")
+                except RuntimeError as e:
+                    if "Failed to add edge detection" in str(e):
+                        logger.warning(f"Edge detection failed for button {color} on pin {pin}, using polling instead")
+                        # Don't raise - we'll use polling in the main loop
+                    else:
+                        logger.error(f"Failed to setup button {color} on GPIO pin {pin}: {e}")
+                        raise
             except Exception as e:
                 logger.error(f"Failed to setup button {color} on GPIO pin {pin}: {e}")
                 raise
@@ -253,13 +254,45 @@ class LEDDirectorServer(LEDDirectorBase):
     def run(self):
         """Main loop to keep the server running."""
         logger.info("LED Director Server started. Press buttons or Ctrl+C to stop.")
+        
+        # Check if any buttons are using polling (no edge detection)
+        polling_needed = False
+        for color, pin in self.button_pins.items():
+            try:
+                # Test if edge detection is working by checking if callback was set
+                GPIO.event_detected(pin)  # This will work if edge detection is active
+            except RuntimeError:
+                # Edge detection not working for this pin
+                polling_needed = True
+                break
+        
+        if polling_needed:
+            logger.info("Using button polling due to edge detection issues")
+        
         try:
             while not self._shutdown_requested:
-                time.sleep(0.1)  # Small sleep to prevent high CPU usage
+                if polling_needed:
+                    # Poll buttons manually
+                    self.poll_buttons()
+                time.sleep(0.05)  # 50ms sleep for responsive polling
         except KeyboardInterrupt:
             logger.info("Keyboard interrupt received")
         finally:
             self.cleanup()
+    
+    def poll_buttons(self):
+        """Poll button states manually (fallback when edge detection fails)."""
+        for color, pin in self.button_pins.items():
+            current_state = GPIO.input(pin)  # False = pressed (due to pull-up)
+            previous_state = self.button_states[color]
+            
+            # Detect button press (transition from True to False)
+            if previous_state and not current_state:
+                logger.info(f"{color.capitalize()} button pressed on GPIO pin {pin}")
+                self.switch_led(color)
+                self.send_osc_command(color)
+            
+            self.button_states[color] = current_state
 
 
 class LEDDirectorClient(LEDDirectorBase):
