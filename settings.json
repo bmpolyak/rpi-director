@@ -1,8 +1,8 @@
 {
     "buttons": {
-        "red": 25,
-        "yellow": 8,
-        "green": 7
+        "red": 2,
+        "yellow": 3,
+        "green": 4
     },
     "leds": {
         "red": 10,
