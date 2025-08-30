@@ -54,25 +54,23 @@ def get_real_user():
     else:
         return pwd.getpwuid(os.getuid()).pw_name
 
-def setup_venv(user_home, real_user, mode):
-    """Create virtual environment and install dependencies."""
-    venv_path = user_home / "rpi-director-venv"
+def setup_system_packages(user_home, real_user, mode):
+    """Install system packages instead of using virtual environment."""
     script_dir = user_home / "rpi-director"
     
-    print("\n🚀 Setting up Python virtual environment...")
+    print("\n🚀 Installing system packages...")
     
     # Install required system packages
     if not run_command("apt update", "Updating package list"):
         return False
     
-    # Install Python development tools and dependencies for RPi.GPIO compilation
+    # Install Python and required system packages
     packages = [
-        "python3-venv",
-        "python3-full", 
-        "python3-dev",
+        "python3",
         "python3-pip",
-        "build-essential",
-        "gcc"
+        "python3-rpi.gpio",  # System RPi.GPIO (0.7.2 - works with edge detection)
+        "python3-paho-mqtt",  # System paho-mqtt
+        "python3-setuptools"
     ]
     
     # Add MQTT broker for server mode
@@ -80,7 +78,7 @@ def setup_venv(user_home, real_user, mode):
         packages.extend(["mosquitto", "mosquitto-clients"])
     
     package_list = " ".join(packages)
-    if not run_command(f"apt install -y {package_list}", "Installing system packages and dependencies"):
+    if not run_command(f"apt install -y {package_list}", "Installing system packages"):
         return False
     
     # Enable and start MQTT broker on server
@@ -91,59 +89,15 @@ def setup_venv(user_home, real_user, mode):
             return False
         print("✅ MQTT broker (Mosquitto) installed and started")
     
-    # Create virtual environment as the real user
-    venv_cmd = f"sudo -u {real_user} python3 -m venv {venv_path}"
-    if not run_command(venv_cmd, f"Creating virtual environment at {venv_path}"):
-        return False
-    
-    # Upgrade pip and install wheel to avoid legacy setup.py issues
-    upgrade_cmd = f"sudo -u {real_user} {venv_path}/bin/pip install --upgrade pip wheel setuptools"
-    if not run_command(upgrade_cmd, "Upgrading pip and installing wheel support"):
-        return False
-    
-    # Install requirements
-    pip_cmd = f"sudo -u {real_user} {venv_path}/bin/pip install -r {script_dir}/requirements.txt"
-    if not run_command(pip_cmd, "Installing Python dependencies"):
-        print("⚠️  Pip installation failed, trying alternative approach...")
-        
-        # Try installing RPi.GPIO from system packages first
-        if not run_command("apt install -y python3-rpi.gpio", "Installing RPi.GPIO from system packages"):
-            return False
-        
-        # Create a requirements file without RPi.GPIO for retry
-        temp_requirements = script_dir / "requirements_temp.txt"
-        with open(script_dir / "requirements.txt", 'r') as f:
-            original_requirements = f.read()
-        
-        # Filter out RPi.GPIO from requirements
-        filtered_requirements = []
-        for line in original_requirements.strip().split('\n'):
-            if not line.strip().lower().startswith('rpi.gpio'):
-                filtered_requirements.append(line)
-        
-        with open(temp_requirements, 'w') as f:
-            f.write('\n'.join(filtered_requirements))
-        
-        # Try installing remaining packages
-        pip_retry_cmd = f"sudo -u {real_user} {venv_path}/bin/pip install -r {temp_requirements}"
-        if not run_command(pip_retry_cmd, "Installing remaining Python dependencies"):
-            # Clean up temp file
-            temp_requirements.unlink(missing_ok=True)
-            return False
-        
-        # Clean up temp file
-        temp_requirements.unlink(missing_ok=True)
-        print("✅ Used system RPi.GPIO package as fallback")
-
-    # Install the rpi_director package in development mode
-    install_pkg_cmd = f"cd {script_dir} && sudo -u {real_user} {venv_path}/bin/pip install -e ."
+    # Install the rpi_director package in development mode using system Python
+    install_pkg_cmd = f"cd {script_dir} && python3 -m pip install -e . --break-system-packages"
     if not run_command(install_pkg_cmd, "Installing rpi_director package in development mode"):
-        print("⚠️  Package installation failed, trying legacy approach...")
+        print("⚠️  Package installation failed, trying alternative approach...")
         # Fallback: just make sure the module can be found via PYTHONPATH
         pythonpath_cmd = f"echo 'export PYTHONPATH={script_dir}:$PYTHONPATH' >> /home/{real_user}/.bashrc"
         run_command(pythonpath_cmd, "Adding project to PYTHONPATH", check=False)
 
-    print(f"✅ Virtual environment created at {venv_path}")
+    print("✅ System packages installed successfully")
     return True
 
 def setup_gpio_permissions(real_user):
@@ -250,8 +204,8 @@ def install_service(mode, user_home, real_user, client_id=None):
         # Update the ExecStart line to include client ID
         if client_id != "client1":  # Only modify if not default
             service_content = service_content.replace(
-                "ExecStart=/home/boston/rpi-director-venv/bin/python -m rpi_director --mode client",
-                f"ExecStart=/home/boston/rpi-director-venv/bin/python -m rpi_director --mode client --client-id {client_id}"
+                "ExecStart=/usr/bin/python3 -m rpi_director --mode client",
+                f"ExecStart=/usr/bin/python3 -m rpi_director --mode client --client-id {client_id}"
             )
         
         # Write the modified service file
@@ -301,7 +255,6 @@ def test_installation(mode, user_home, real_user, client_id=None):
     print(f"\n🧪 Testing {mode} installation...")
     
     script_dir = user_home / "rpi-director"
-    venv_path = user_home / "rpi-director-venv"
     
     # Determine service name based on mode and client_id
     if mode == "client" and client_id and client_id != "client1":
@@ -312,11 +265,11 @@ def test_installation(mode, user_home, real_user, client_id=None):
     print(f"   Temporarily stopping {service_name} for testing...")
     run_command(f"systemctl stop {service_name}", f"Stopping {service_name} for test", check=False)
     
-    # Build test command with client_id if provided
+    # Build test command with client_id if provided (using system Python)
     if mode == "client" and client_id:
-        test_cmd = f"cd {script_dir} && sudo -u {real_user} {venv_path}/bin/python -m rpi_director --mode {mode} --client-id {client_id}"
+        test_cmd = f"cd {script_dir} && sudo -u {real_user} python3 -m rpi_director --mode {mode} --client-id {client_id}"
     else:
-        test_cmd = f"cd {script_dir} && sudo -u {real_user} {venv_path}/bin/python -m rpi_director --mode {mode}"
+        test_cmd = f"cd {script_dir} && sudo -u {real_user} python3 -m rpi_director --mode {mode}"
     
     print(f"   Running: {test_cmd}")
     print("   (This will run for 5 seconds then stop)")
@@ -392,9 +345,9 @@ def main():
     
     success = True
     
-    # Step 1: Setup virtual environment
+    # Step 1: Setup system packages
     if success:
-        success = setup_venv(user_home, real_user, args.mode)
+        success = setup_system_packages(user_home, real_user, args.mode)
     
     # Step 2: Setup GPIO permissions
     if success:
@@ -429,11 +382,11 @@ def main():
         print(f"  Stop service: sudo systemctl stop {service_name}")
         print(f"  Start service: sudo systemctl start {service_name}")
         
-        # Build manual run command with client_id if provided
+        # Build manual run command with client_id if provided (using system Python)
         if args.mode == "client" and args.client_id:
-            manual_cmd = f"cd /home/{real_user}/rpi-director && /home/{real_user}/rpi-director-venv/bin/python -m rpi_director --mode {args.mode} --client-id {args.client_id}"
+            manual_cmd = f"cd /home/{real_user}/rpi-director && python3 -m rpi_director --mode {args.mode} --client-id {args.client_id}"
         else:
-            manual_cmd = f"cd /home/{real_user}/rpi-director && /home/{real_user}/rpi-director-venv/bin/python -m rpi_director --mode {args.mode}"
+            manual_cmd = f"cd /home/{real_user}/rpi-director && python3 -m rpi_director --mode {args.mode}"
         print(f"  Manual run:   {manual_cmd}")
         
         print(f"\n📋 Logging Configuration:")

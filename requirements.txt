@@ -1,7 +1,15 @@
+# Dependencies for Raspberry Pi LED Director
+# 
+# RECOMMENDED: Install via system packages (APT) instead of pip:
+#   sudo apt install python3-paho-mqtt python3-rpi.gpio
+#
+# System packages provide better compatibility and the correct RPi.GPIO version (0.7.2)
+# with working edge detection support.
+
 # MQTT library for network communication
 paho-mqtt>=1.6.0
 
 # Raspberry Pi GPIO library
-# Note: RPi.GPIO is typically pre-installed on Raspberry Pi OS
-# If not available, it can be installed via pip
+# Note: System package python3-rpi.gpio (version 0.7.2) is preferred
+# Pip version 0.7.1 has edge detection issues
 RPi.GPIO>=0.7.0
