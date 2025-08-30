@@ -5,8 +5,8 @@ After=network.target
 
 [Service]
 Type=simple
-User=boston
-Group=gpio
+User=root
+Group=root
 WorkingDirectory=/home/boston/rpi-director
 ExecStart=/home/boston/rpi-director-venv/bin/python -m rpi_director --mode server
 Restart=always

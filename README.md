@@ -35,12 +35,15 @@ A robust Python system for controlling LEDs and monitoring buttons across multip
 ## Hardware Setup
 
 ### Server Pi (Button Monitoring)
-- **Buttons**: GPIO 2, 3, 4 (with pull-up resistors)
-- **LEDs**: GPIO 10, 9, 11 (with appropriate resistors)
+- **Buttons**: GPIO 2, 3, 4 (with pull-up resistors, active-low)
+- **LEDs**: 
+  - Status LEDs: GPIO 10 (red), 9 (green)
+  - Client status LEDs: GPIO 11 (client1), 5 (client2), 6 (client3)
 - **Network**: Requires static IP for MQTT broker accessibility
 
 ### Client Pis (LED Control)  
-- **LEDs**: GPIO 10, 9, 11 (with appropriate resistors)
+- **LEDs**: GPIO 10 (red), 9 (green), 11 (yellow)
+- **Button**: GPIO 2 (yellow, with pull-up resistor, active-low)
 - **Network**: Can use DHCP, but needs access to server's MQTT broker
 
 ### Wiring Example
@@ -50,6 +53,8 @@ Button (GPIO 2) ─── [Button] ─── GND
 
 LED (GPIO 10) ─── [220Ω Resistor] ─── [LED] ─── GND
 ```
+
+**Important**: All buttons are configured as active-low (HIGH=not pressed, LOW=pressed) with internal pull-up resistors enabled.
 
 ## Network Configuration
 
@@ -71,8 +76,8 @@ This will:
 - Use NetworkManager-compatible configuration
 
 ### Static IP Assignment
-- **Server Pi**: 192.168.1.100
-- **Client Pis**: 192.168.1.101, 192.168.1.102, etc.
+- **Server Pi**: 192.168.5.101 (as configured in settings.json)
+- **Client Pis**: 192.168.5.102, 192.168.5.103, etc.
 
 ## Installation
 
@@ -117,34 +122,36 @@ The system uses `settings.json` for configuration:
 
 ```json
 {
-  "server": {
-    "buttons": [
-      {"name": "red", "pin": 2, "led_pin": 10},
-      {"name": "yellow", "pin": 3, "led_pin": 9},
-      {"name": "green", "pin": 4, "led_pin": 11}
-    ]
+  "server_buttons": {
+    "red": 2,
+    "green": 3,
+    "clear": 4
   },
-  "client": {
-    "leds": [
-      {"name": "red", "pin": 10},
-      {"name": "yellow", "pin": 9},
-      {"name": "green", "pin": 11}
-    ]
+  "server_leds": {
+    "red": 10,
+    "green": 9,
+    "yellow_client1": 11,
+    "yellow_client2": 5,
+    "yellow_client3": 6
   },
+  "client_buttons": {
+    "yellow": 2
+  },
+  "client_leds": {
+    "red": 10,
+    "green": 9,
+    "yellow": 11
+  },
+  "clients": [
+    "client1",
+    "client2", 
+    "client3"
+  ],
   "mqtt": {
-    "broker_host": "192.168.1.100",
+    "broker_host": "192.168.5.101",
     "broker_port": 1883,
-    "topics": {
-      "button_press": "rpi/button/{color}",
-      "led_status": "rpi/led/{color}/status",
-      "led_command": "rpi/led/{color}/command"
-    }
-  },
-  "logging": {
-    "level": "INFO",
-    "file": "/var/log/rpi_director.log",
-    "max_bytes": 10485760,
-    "backup_count": 5
+    "keepalive": 60,
+    "client_id_prefix": "led_director"
   }
 }
 ```
@@ -152,9 +159,11 @@ The system uses `settings.json` for configuration:
 ### MQTT Topics
 
 The system uses the following MQTT topic structure:
-- `rpi/button/{color}`: Button press events (published by server)
-- `rpi/led/{color}/command`: LED control commands (published by server)
-- `rpi/led/{color}/status`: LED status confirmations (published by clients)
+- `led-director/server/event/buttons/{color}`: Button press events (published by server)
+- `led-director/client/{client_id}/cmd/leds/{color}`: LED control commands (published by server)
+- `led-director/client/{client_id}/state/leds/{color}`: LED status confirmations (published by clients)
+- `led-director/client/{client_id}/event/buttons/yellow`: Client button events (published by clients)
+- `led-director/client/{client_id}/heartbeat`: Client presence heartbeat (published by clients)
 
 ## Service Management
 
@@ -290,7 +299,7 @@ tail -f /home/boston/rpi-director/rpi_director.log
 
 ### 🏭 Industrial Enhancements
 - **SD Card Protection**: File logging disabled by default with optional rotation when enabled
-- **Hardware Diagnostics**: Comprehensive startup logging shows pin assignments and edge detection status
+- **Hardware Diagnostics**: Comprehensive GPIO testing script with edge detection validation and interactive/non-interactive modes
 - **Active-Low Documentation**: Clear documentation of button wiring assumptions (HIGH=not pressed, LOW=pressed)
 - **Thread Safety**: Enhanced GPIO operations with proper locking for concurrent access
 - **Production Logging**: WARNING level default with configurable verbosity via environment variables
@@ -335,6 +344,77 @@ The system provides immediate visual feedback for connection and communication i
 - **Reliable Messaging**: QoS 1 ensures critical status updates aren't lost on factory networks
 - **24/7 Operation**: Robust error handling and automatic recovery for continuous factory use
 
+## GPIO Hardware Diagnostics
+
+A comprehensive GPIO testing script (`gpio_test.py`) is included to validate hardware setup and diagnose edge detection issues before deployment.
+
+### Quick GPIO Test
+
+```bash
+cd ~/rpi-director
+sudo python3 gpio_test.py
+```
+
+### Non-Interactive Mode (for automated testing)
+
+```bash
+# For unattended bench testing or CI/CD pipelines
+sudo python3 gpio_test.py --no-interactive
+```
+
+### Diagnostic Features
+
+The GPIO test script provides comprehensive validation:
+
+**System Capability Checks**:
+- GPIO permissions and group membership
+- RPi.GPIO library availability  
+- Conflicting services detection (pigpiod, etc.)
+- Pin conflict analysis with settings.json
+
+**Per-Pin Testing**:
+- Basic GPIO setup validation
+- Edge detection capability (FALLING, RISING, BOTH)
+- Callback function testing with timeout
+- Multiple callback stress testing
+- Hardware bounce/noise detection
+- Pull-up resistor validation
+- Pin stability analysis over time
+
+**Interactive vs Non-Interactive Mode**:
+- **Interactive**: Prompts for button presses to test actual hardware
+- **Non-Interactive**: Validates IRQ system without user interaction (ideal for bench testing)
+
+### Test Results Interpretation
+
+**✅ PASSED**: Pin fully functional with edge detection
+**⚠️ PARTIAL**: Core functionality works but some advanced features failed
+**❌ FAILED**: Critical issues detected, will fall back to polling
+
+**System Verdicts**:
+- **PRODUCTION READY**: All pins passed, optimal performance expected
+- **MOSTLY READY**: 75%+ pins working, some polling fallback
+- **NEEDS WORK**: <75% pins working, significant polling required  
+- **NOT READY**: No edge detection working, all polling fallback
+
+### Common Issues Detected
+
+The script automatically diagnoses and suggests fixes for:
+
+- **Permission Issues**: Not in gpio group, need sudo
+- **Pin Conflicts**: I²C (GPIO 2,3), SPI (GPIO 7-11), UART (GPIO 14,15)  
+- **Hardware Bouncing**: Button contacts creating multiple rapid callbacks
+- **Electrical Noise**: Excessive callbacks indicating poor signal quality
+- **Pull-up Problems**: Internal pull-up resistor not functioning
+- **Service Conflicts**: pigpiod or other GPIO services interfering
+
+### Performance Predictions
+
+Based on test results, the script predicts runtime performance:
+
+- **Edge Detection Working**: <1ms latency, ~0% CPU when idle
+- **Polling Fallback**: ~20ms latency, ~2-5% continuous CPU usage
+
 ## Troubleshooting
 
 ### Common Issues
@@ -345,8 +425,8 @@ The system provides immediate visual feedback for connection and communication i
 sudo systemctl status mosquitto
 
 # Test MQTT connectivity
-mosquitto_pub -h 192.168.1.100 -t test/topic -m "hello"
-mosquitto_sub -h 192.168.1.100 -t test/topic
+mosquitto_pub -h 192.168.5.101 -t test/topic -m "hello"
+mosquitto_sub -h 192.168.5.101 -t test/topic
 ```
 
 **GPIO Permission Issues**
@@ -364,7 +444,7 @@ sudo usermod -a -G gpio $USER
 ip addr show eth0
 
 # Test connectivity between Pis
-ping 192.168.1.100  # From client to server
+ping 192.168.5.101  # From client to server
 ```
 
 ### Service Debugging
