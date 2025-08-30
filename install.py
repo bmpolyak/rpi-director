@@ -185,19 +185,60 @@ def setup_gpio_permissions(real_user):
     print(f"   Note: User may need to log out and back in for group changes to take effect")
     return True
 
+def cleanup_old_service_files(mode, client_id=None):
+    """Clean up any incorrectly named service files from previous installs."""
+    if mode != "client" or not client_id:
+        return
+    
+    # List of potential incorrect service file names to clean up
+    incorrect_names = [
+        f"rpi-director-{client_id}.service",
+        "rpi-director-client1.service",
+        "rpi-director-client2.service", 
+        "rpi-director-client3.service"
+    ]
+    
+    systemd_dir = Path("/etc/systemd/system")
+    cleaned_any = False
+    
+    for incorrect_name in incorrect_names:
+        incorrect_path = systemd_dir / incorrect_name
+        if incorrect_path.exists() and incorrect_name != "rpi-director-client.service":
+            print(f"🧹 Found old service file: {incorrect_name}")
+            
+            # Stop and disable the incorrect service
+            run_command(f"systemctl stop {incorrect_name}", f"Stopping old service {incorrect_name}", check=False)
+            run_command(f"systemctl disable {incorrect_name}", f"Disabling old service {incorrect_name}", check=False)
+            
+            # Remove the file
+            try:
+                incorrect_path.unlink()
+                print(f"   ✅ Removed {incorrect_name}")
+                cleaned_any = True
+            except Exception as e:
+                print(f"   ⚠️  Could not remove {incorrect_name}: {e}")
+    
+    if cleaned_any:
+        # Reload systemd after cleanup
+        run_command("systemctl daemon-reload", "Reloading systemd after cleanup", check=False)
+        print("✅ Cleaned up old service files")
+
 def install_service(mode, user_home, real_user, client_id=None):
     """Install and enable systemd service."""
+    # Clean up any old incorrectly named service files first
+    cleanup_old_service_files(mode, client_id)
+    
     print(f"\n⚙️  Installing {mode} service...")
     
     script_dir = user_home / "rpi-director"
     
-    # For client mode with specific client ID, create a custom service file name
-    if mode == "client" and client_id != "client1":
-        service_file = f"rpi-director-{client_id}.service"
-        source_service = script_dir / "rpi-director-client.service"  # Use template
-    else:
-        service_file = f"rpi-director-{mode}.service" if mode == "client" else "rpi-director.service"
-        source_service = script_dir / service_file
+    # Always use standard service file names regardless of client_id
+    if mode == "client":
+        service_file = "rpi-director-client.service"
+        source_service = script_dir / "rpi-director-client.service"
+    else:  # server mode
+        service_file = "rpi-director.service"
+        source_service = script_dir / "rpi-director.service"
     
     target_service = Path("/etc/systemd/system") / service_file
     
@@ -339,11 +380,11 @@ def test_installation(mode, user_home, real_user, client_id=None):
     
     script_dir = user_home / "rpi-director"
     
-    # Determine service name based on mode and client_id
-    if mode == "client" and client_id != "client1":
-        service_name = f"rpi-director-{client_id}.service"
-    else:
-        service_name = f"rpi-director-{mode}.service" if mode == "client" else "rpi-director.service"
+    # Determine service name based on mode only
+    if mode == "client":
+        service_name = "rpi-director-client.service"
+    else:  # server mode
+        service_name = "rpi-director.service"
     
     print(f"   Temporarily stopping {service_name} for testing...")
     run_command(f"systemctl stop {service_name}", f"Stopping {service_name} for test", check=False)
@@ -485,11 +526,11 @@ def main():
             print(f"\nYour LED Director {args.mode} is now installed and running.")
         
         print(f"\nUseful commands:")
-        # Determine service name based on mode and client_id
-        if args.mode == "client" and args.client_id != "client1":
-            service_name = f"rpi-director-{args.client_id}.service"
-        else:
-            service_name = f"rpi-director-{args.mode}.service" if args.mode == "client" else "rpi-director.service"
+        # Determine service name based on mode only
+        if args.mode == "client":
+            service_name = "rpi-director-client.service"
+        else:  # server mode
+            service_name = "rpi-director.service"
         
         print(f"  Check status: sudo systemctl status {service_name}")
         print(f"  View logs:    sudo journalctl -u {service_name} -f")
