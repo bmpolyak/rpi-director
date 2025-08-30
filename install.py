@@ -181,6 +181,61 @@ def install_service(mode, user_home, real_user, client_id=None):
     
     target_service = Path("/etc/systemd/system") / service_file
     
+    # Check if service is already installed and running
+    service_exists = target_service.exists()
+    service_enabled = False
+    service_running = False
+    choice = None  # Initialize choice variable
+    
+    if service_exists:
+        # Check if service is enabled
+        try:
+            result = subprocess.run(f"systemctl is-enabled {service_file}", shell=True, capture_output=True, text=True)
+            service_enabled = (result.returncode == 0 and result.stdout.strip() == "enabled")
+        except Exception:
+            service_enabled = False
+        
+        # Check if service is running
+        try:
+            result = subprocess.run(f"systemctl is-active {service_file}", shell=True, capture_output=True, text=True)
+            service_running = (result.returncode == 0 and result.stdout.strip() == "active")
+        except Exception:
+            service_running = False
+        
+        print(f"📋 Service {service_file} status:")
+        print(f"  - Installed: {'✅ Yes' if service_exists else '❌ No'}")
+        print(f"  - Enabled: {'✅ Yes' if service_enabled else '❌ No'}")
+        print(f"  - Running: {'✅ Yes' if service_running else '❌ No'}")
+        
+        # Ask user what to do
+        print(f"\n⚠️  Service {service_file} already exists!")
+        print("Options:")
+        print("  1. Reinstall (stop, update, restart)")
+        print("  2. Update only (keep running if active)")
+        print("  3. Skip service installation")
+        
+        while True:
+            try:
+                choice = input("Choose option [1/2/3]: ").strip()
+                if choice in ['1', '2', '3']:
+                    break
+                print("Please enter 1, 2, or 3")
+            except (KeyboardInterrupt, EOFError):
+                print("\n❌ Installation cancelled by user")
+                return False
+        
+        if choice == '3':
+            print("⏭️  Skipping service installation")
+            return True
+        elif choice == '1':
+            print("🔄 Reinstalling service...")
+            if service_running:
+                run_command(f"systemctl stop {service_file}", f"Stopping {service_file}", check=False)
+            if service_enabled:
+                run_command(f"systemctl disable {service_file}", f"Disabling {service_file}", check=False)
+        else:  # choice == '2'
+            print("📝 Updating service configuration...")
+    
     # Check if source service file exists
     if not source_service.exists():
         print(f"❌ Service file {source_service} not found!")
@@ -213,17 +268,32 @@ def install_service(mode, user_home, real_user, client_id=None):
     if not run_command("systemctl daemon-reload", "Reloading systemd"):
         return False
     
-    # Enable service
+    # Handle service enabling and starting based on previous state and user choice
     service_name = service_file
-    if not run_command(f"systemctl enable {service_name}", f"Enabling {service_name}"):
-        return False
     
-    # Start service
-    if not run_command(f"systemctl start {service_name}", f"Starting {service_name}"):
-        print(f"⚠️  Service failed to start. Check with: journalctl -u {service_name}")
-        return False
-    
-    print(f"✅ Service {service_name} installed and started")
+    if service_exists and choice == '2':  # Update only
+        print(f"📝 Service {service_name} configuration updated")
+        if service_enabled:
+            print(f"✅ Service {service_name} remains enabled")
+        if service_running:
+            print(f"🔄 Restarting service {service_name} to apply changes...")
+            if not run_command(f"systemctl restart {service_name}", f"Restarting {service_name}"):
+                print(f"⚠️  Service restart failed. Check with: journalctl -u {service_name}")
+                return False
+            print(f"✅ Service {service_name} restarted successfully")
+        else:
+            print(f"ℹ️  Service {service_name} was not running, leaving stopped")
+    else:  # New installation or reinstall
+        # Enable service
+        if not run_command(f"systemctl enable {service_name}", f"Enabling {service_name}"):
+            return False
+        
+        # Start service
+        if not run_command(f"systemctl start {service_name}", f"Starting {service_name}"):
+            print(f"⚠️  Service failed to start. Check with: journalctl -u {service_name}")
+            return False
+        
+        print(f"✅ Service {service_name} installed and started")
     return True
 
 def test_installation(mode, user_home, real_user, client_id=None):
