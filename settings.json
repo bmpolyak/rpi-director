@@ -1,23 +1,23 @@
 {
     "server_buttons": {
-        "red": 2,
-        "green": 3,
-        "clear": 4
+        "red": 17,
+        "green": 27,
+        "clear": 22
     },
     "server_leds": {
-        "red": 10,
-        "green": 9,
-        "yellow_client1": 11,
-        "yellow_client2": 5,
-        "yellow_client3": 6
+        "red": 23,
+        "green": 24,
+        "yellow_client1": 5,
+        "yellow_client2": 6,
+        "yellow_client3": 12
     },
     "client_buttons": {
-        "yellow": 2
+        "yellow": 16
     },
     "client_leds": {
-        "red": 10,
-        "green": 9,
-        "yellow": 11
+        "red": 13,
+        "green": 19,
+        "yellow": 20
     },
     "clients": [
         "client1",
