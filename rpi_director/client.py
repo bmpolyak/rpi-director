@@ -19,7 +19,7 @@ class LEDDirectorClient(LEDDirectorBase):
         super().__init__(settings_path, mode="client", client_id=client_id)
         
         # Heartbeat settings
-        self.heartbeat_interval = 3.0  # Send heartbeat every 3 seconds
+        self.heartbeat_interval = 10.0  # Send heartbeat every 10 seconds
         self.heartbeat_thread = None
         self.heartbeat_running = False
         

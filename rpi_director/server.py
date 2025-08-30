@@ -28,7 +28,7 @@ class LEDDirectorServer(LEDDirectorBase):
         
         # Client presence tracking
         self.connected_clients = {}  # client_id -> last_seen_timestamp
-        self.CLIENT_TIMEOUT = 10.0   # Consider client offline after 10 seconds
+        self.CLIENT_TIMEOUT = 40.0   # Consider client offline after 40 seconds
         
         # Status indication threads
         self.mqtt_status_thread = None
