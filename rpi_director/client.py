@@ -132,7 +132,8 @@ class LEDDirectorClient(LEDDirectorBase):
                     else:
                         time.sleep(3.0)
                 else:
-                    # MQTT is connected, wait before next check
+                    # MQTT is connected - yellow LED state should be controlled by server commands
+                    # Don't interfere with LED state here, just wait
                     time.sleep(3.0)
                     
             except Exception as e:

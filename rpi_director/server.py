@@ -28,7 +28,7 @@ class LEDDirectorServer(LEDDirectorBase):
         
         # Client presence tracking
         self.connected_clients = {}  # client_id -> last_seen_timestamp
-        self.CLIENT_TIMEOUT = 12.0   # Consider client offline after 30 seconds
+        self.CLIENT_TIMEOUT = 10.0   # Consider client offline after 10 seconds
         
         # Status indication threads
         self.mqtt_status_thread = None
@@ -88,7 +88,7 @@ class LEDDirectorServer(LEDDirectorBase):
         self.client_last_press[client_id] = current_time
         logger.info(f"Client {client_id} yellow button pressed")
         
-        if self.current_mode == "red_active":
+        if self.current_mode in ["red_active", "green_active"]:
             # Toggle client's yellow LED state on server
             current_state = self.client_yellow_states.get(client_id, False)
             new_state = not current_state
@@ -108,7 +108,7 @@ class LEDDirectorServer(LEDDirectorBase):
             
             logger.info(f"Set {client_id} yellow LED {'ON' if new_state else 'OFF'}")
         else:
-            logger.info(f"Client {client_id} yellow button pressed but not in red_active mode (current: {self.current_mode})")
+            logger.info(f"Client {client_id} yellow button pressed but red/green LED not active (current: {self.current_mode})")
     
     def handle_client_heartbeat(self, client_id, payload):
         """Handle heartbeat messages from clients."""
@@ -248,35 +248,50 @@ class LEDDirectorServer(LEDDirectorBase):
         logger.debug("MQTT status worker thread exiting")
     
     def _client_status_worker(self):
-        """Monitor client heartbeats and flash yellow LED if any client is disconnected."""
+        """Monitor client heartbeats and manage yellow LEDs based on client status and button states."""
         while self.client_status_running:
             try:
-                # Check if any expected clients are disconnected
-                disconnected_clients = []
-                for client_id in self.settings.clients_list:
-                    if not self.is_client_connected(client_id):
-                        disconnected_clients.append(client_id)
+                any_disconnected = False
                 
-                if disconnected_clients:
-                    # Flash yellow LED to indicate missing clients
-                    # Use the first yellow LED we can find (could be yellow or yellow_client1, etc.)
-                    yellow_led = None
-                    for led_name in self.settings.get_led_pins():
-                        if led_name.startswith("yellow"):
-                            yellow_led = led_name
-                            break
+                # Check status of all expected clients
+                for client_id in self.settings.clients_list:
+                    yellow_led_name = f"yellow_{client_id}"
+                    if yellow_led_name in self.settings.get_led_pins():
+                        
+                        if self.is_client_connected(client_id):
+                            # Client is connected - LED should reflect button state
+                            button_pressed = self.client_yellow_states.get(client_id, False)
+                            # Only show button state if red or green mode is active
+                            if self.current_mode in ["red_active", "green_active"] and button_pressed:
+                                self.gpio.set_led(yellow_led_name, True)  # Steady ON
+                            else:
+                                self.gpio.set_led(yellow_led_name, False)  # Steady OFF
+                        else:
+                            # Client is disconnected - will flash this LED
+                            any_disconnected = True
+                
+                # If any clients are disconnected, do the flash cycle
+                if any_disconnected:
+                    # Turn ON all disconnected client LEDs
+                    for client_id in self.settings.clients_list:
+                        if not self.is_client_connected(client_id):
+                            yellow_led_name = f"yellow_{client_id}"
+                            if yellow_led_name in self.settings.get_led_pins():
+                                self.gpio.set_led(yellow_led_name, True)
                     
-                    if yellow_led:
-                        # Quick flash: on for 0.2s, off for 2.8s (total 3s cycle)
-                        self.gpio.set_led(yellow_led, True)
-                        time.sleep(0.2)
-                        if self.client_status_running:  # Check if we should still be running
-                            self.gpio.set_led(yellow_led, False)
-                            time.sleep(2.8)
-                    else:
-                        time.sleep(3.0)
+                    time.sleep(0.2)
+                    
+                    # Turn OFF all disconnected client LEDs
+                    if self.client_status_running:
+                        for client_id in self.settings.clients_list:
+                            if not self.is_client_connected(client_id):
+                                yellow_led_name = f"yellow_{client_id}"
+                                if yellow_led_name in self.settings.get_led_pins():
+                                    self.gpio.set_led(yellow_led_name, False)
+                        
+                        time.sleep(2.8)  # Complete the 3-second cycle
                 else:
-                    # All clients connected, wait before next check
+                    # No disconnected clients, regular sleep
                     time.sleep(3.0)
                     
             except Exception as e:
