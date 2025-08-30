@@ -192,7 +192,7 @@ def install_service(mode, user_home, real_user, client_id=None):
     script_dir = user_home / "rpi-director"
     
     # For client mode with specific client ID, create a custom service file name
-    if mode == "client" and client_id and client_id != "client1":
+    if mode == "client" and client_id != "client1":
         service_file = f"rpi-director-{client_id}.service"
         source_service = script_dir / "rpi-director-client.service"  # Use template
     else:
@@ -261,28 +261,45 @@ def install_service(mode, user_home, real_user, client_id=None):
         print(f"❌ Service file {source_service} not found!")
         return False
     
-    # For client mode with custom client ID, modify the service file content
+    # For client mode with any client ID, modify the service file content
     if mode == "client" and client_id:
         # Read the template service file
         with open(source_service, 'r') as f:
             service_content = f.read()
         
         # Update the ExecStart line to include client ID
-        if client_id != "client1":  # Only modify if not default
-            service_content = service_content.replace(
-                "ExecStart=/usr/bin/python3 -m rpi_director --mode client",
-                f"ExecStart=/usr/bin/python3 -m rpi_director --mode client --client-id {client_id}"
-            )
+        # Replace any existing ExecStart line with the correct venv path and client-id
+        import re
+        service_content = re.sub(
+            r'ExecStart=.*?python3 -m rpi_director --mode client.*',
+            f'ExecStart=/home/{real_user}/rpi-director-venv/bin/python3 -m rpi_director --mode client --client-id {client_id}',
+            service_content
+        )
         
         # Write the modified service file
         with open(target_service, 'w') as f:
             f.write(service_content)
         
-        print(f"✅ Created custom service file {service_file} with client ID: {client_id}")
-    else:
-        # Copy service file as-is for server mode or default client
-        if not run_command(f"cp {source_service} {target_service}", f"Copying {service_file}"):
-            return False
+        print(f"✅ Created service file {service_file} with client ID: {client_id}")
+    elif mode == "server":
+        # Handle server mode service file
+        # Read the source service file
+        with open(source_service, 'r') as f:
+            service_content = f.read()
+        
+        # Update the ExecStart line to use correct venv path
+        import re
+        service_content = re.sub(
+            r'ExecStart=.*?python3 -m rpi_director --mode server.*',
+            f'ExecStart=/home/{real_user}/rpi-director-venv/bin/python3 -m rpi_director --mode server --client-id server',
+            service_content
+        )
+        
+        # Write the modified service file
+        with open(target_service, 'w') as f:
+            f.write(service_content)
+        
+        print(f"✅ Updated service file {service_file} with correct venv path")
     
     # Reload systemd
     if not run_command("systemctl daemon-reload", "Reloading systemd"):
@@ -323,7 +340,7 @@ def test_installation(mode, user_home, real_user, client_id=None):
     script_dir = user_home / "rpi-director"
     
     # Determine service name based on mode and client_id
-    if mode == "client" and client_id and client_id != "client1":
+    if mode == "client" and client_id != "client1":
         service_name = f"rpi-director-{client_id}.service"
     else:
         service_name = f"rpi-director-{mode}.service" if mode == "client" else "rpi-director.service"
@@ -331,11 +348,12 @@ def test_installation(mode, user_home, real_user, client_id=None):
     print(f"   Temporarily stopping {service_name} for testing...")
     run_command(f"systemctl stop {service_name}", f"Stopping {service_name} for test", check=False)
     
-    # Build test command with client_id if provided (using system Python)
+    # Build test command with client_id if provided (using venv Python)
+    venv_python = user_home / "rpi-director-venv" / "bin" / "python3"
     if mode == "client" and client_id:
-        test_cmd = f"cd {script_dir} && sudo -u {real_user} python3 -m rpi_director --mode {mode} --client-id {client_id}"
+        test_cmd = f"cd {script_dir} && sudo -u {real_user} {venv_python} -m rpi_director --mode {mode} --client-id {client_id}"
     else:
-        test_cmd = f"cd {script_dir} && sudo -u {real_user} python3 -m rpi_director --mode {mode}"
+        test_cmd = f"cd {script_dir} && sudo -u {real_user} {venv_python} -m rpi_director --mode {mode}"
     
     print(f"   Running: {test_cmd}")
     print("   (This will run for 5 seconds then stop)")
@@ -362,6 +380,28 @@ def test_installation(mode, user_home, real_user, client_id=None):
     
     return success
 
+def validate_client_id(client_id):
+    """Validate client ID format."""
+    import re
+    
+    if not client_id:
+        return False, "Client ID cannot be empty"
+    
+    # Allow alphanumeric, hyphens, and underscores
+    if not re.match(r'^[a-zA-Z0-9_-]+$', client_id):
+        return False, "Client ID can only contain letters, numbers, hyphens, and underscores"
+    
+    # Check length
+    if len(client_id) > 50:
+        return False, "Client ID must be 50 characters or less"
+    
+    # Reserved names
+    reserved = ['server', 'broker', 'mosquitto', 'mqtt']
+    if client_id.lower() in reserved:
+        return False, f"'{client_id}' is a reserved name, please choose a different client ID"
+    
+    return True, "Valid client ID"
+
 def main():
     """Main setup function."""
     parser = argparse.ArgumentParser(description='Install Raspberry Pi LED Director')
@@ -382,6 +422,14 @@ def main():
         print("   Example: sudo python3 install.py --mode client --client-id client1")
         print("   Valid client IDs: client1, client2, client3, etc.")
         sys.exit(1)
+    
+    # Validate client ID format if provided
+    if args.client_id:
+        is_valid, message = validate_client_id(args.client_id)
+        if not is_valid:
+            print(f"❌ Invalid client ID: {message}")
+            print("   Example valid client IDs: client1, rpi-living-room, sensor_01")
+            sys.exit(1)
     
     print("🎯 Raspberry Pi LED Director Setup")
     print("=" * 50)
@@ -438,7 +486,7 @@ def main():
         
         print(f"\nUseful commands:")
         # Determine service name based on mode and client_id
-        if args.mode == "client" and args.client_id and args.client_id != "client1":
+        if args.mode == "client" and args.client_id != "client1":
             service_name = f"rpi-director-{args.client_id}.service"
         else:
             service_name = f"rpi-director-{args.mode}.service" if args.mode == "client" else "rpi-director.service"
@@ -448,11 +496,12 @@ def main():
         print(f"  Stop service: sudo systemctl stop {service_name}")
         print(f"  Start service: sudo systemctl start {service_name}")
         
-        # Build manual run command with client_id if provided (using system Python)
+        # Build manual run command with client_id if provided (using venv Python)
+        venv_python = f"/home/{real_user}/rpi-director-venv/bin/python3"
         if args.mode == "client" and args.client_id:
-            manual_cmd = f"cd /home/{real_user}/rpi-director && python3 -m rpi_director --mode {args.mode} --client-id {args.client_id}"
+            manual_cmd = f"cd /home/{real_user}/rpi-director && {venv_python} -m rpi_director --mode {args.mode} --client-id {args.client_id}"
         else:
-            manual_cmd = f"cd /home/{real_user}/rpi-director && python3 -m rpi_director --mode {args.mode}"
+            manual_cmd = f"cd /home/{real_user}/rpi-director && {venv_python} -m rpi_director --mode {args.mode}"
         print(f"  Manual run:   {manual_cmd}")
         
         print(f"\n📋 Logging Configuration:")
@@ -473,8 +522,14 @@ def main():
             print(f"  - Listening for MQTT commands from server")
             print(f"  - Configure MQTT broker connection in settings.json")
             print(f"  - Server will send commands to: led-director/client/{args.client_id}/cmd/leds/*")
-            if args.client_id not in ['client1', 'client2', 'client3']:
-                print(f"  - ⚠️  Note: Add '{args.client_id}' to the 'clients' array in server's settings.json")
+            
+            # Check if this is a standard client ID or custom
+            standard_clients = ['client1', 'client2', 'client3']
+            if args.client_id not in standard_clients:
+                print(f"  - ⚠️  IMPORTANT: Add '{args.client_id}' to the 'clients' array in server's settings.json")
+                print(f"    Example: \"clients\": [\"client1\", \"client2\", \"{args.client_id}\"]")
+            else:
+                print(f"  - ✅ Standard client ID - should already be in server's settings.json")
         
         print(f"\n⚠️  Important: If this is the first GPIO setup, you may need to reboot")
         print(f"   or log out and back in for group permissions to take effect.")
