@@ -66,6 +66,9 @@ class LEDDirectorBase:
         self.setup_mqtt_subscriptions()
         # Republish current LED states to ensure retained topics are seeded
         self.republish_led_states()
+        # Start heartbeat for clients
+        if self.mode == "client" and hasattr(self, 'start_heartbeat'):
+            self.start_heartbeat()
     
     def republish_led_states(self):
         """Republish current LED states after MQTT connection to seed retained topics."""
@@ -131,6 +134,12 @@ class LEDDirectorBase:
         # Signal shutdown to all threads
         shutdown_flag.set()
         
+        # Stop status monitoring if available
+        if hasattr(self, 'stop_status_monitoring'):
+            self.stop_status_monitoring()
+        elif hasattr(self, 'stop_mqtt_status_monitoring'):
+            self.stop_mqtt_status_monitoring()
+        
         # Wait for button monitoring thread to finish gracefully
         if self.button_thread and self.button_thread.is_alive():
             logger.info("Waiting for button monitoring thread to finish...")
@@ -156,6 +165,12 @@ class LEDDirectorBase:
         logger.info(f"Button pins: {self.settings.get_button_pins()}")
         logger.info(f"LED pins: {self.settings.get_led_pins()}")
         logger.info("===============================")
+        
+        # Start status monitoring early (before MQTT connection)
+        if hasattr(self, 'start_status_monitoring'):
+            self.start_status_monitoring()
+        elif hasattr(self, 'start_mqtt_status_monitoring'):
+            self.start_mqtt_status_monitoring()
         
         # Wait for MQTT connection using Event (more efficient than busy-wait)
         logger.info("Waiting for MQTT connection...")

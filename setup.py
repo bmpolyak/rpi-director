@@ -298,6 +298,11 @@ def main():
         print(f"  Start service: sudo systemctl start {service_name}")
         print(f"  Manual run:   cd /home/{real_user}/rpi-director && /home/{real_user}/rpi-director-venv/bin/python -m rpi_director --mode {args.mode}")
         
+        print(f"\n📋 Logging Configuration:")
+        print(f"  - File logging is DISABLED by default (SD card protection)")
+        print(f"  - View console logs: sudo journalctl -u {service_name} -f")
+        print(f"  - To enable file logging: edit service file and set RPI_DIRECTOR_ENABLE_FILE_LOGGING=1")
+        
         if args.mode == "server":
             print(f"\n📌 Server Notes:")
             print(f"  - Connect buttons to GPIO pins 2, 3, 4 (red, yellow, green)")

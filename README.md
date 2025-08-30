@@ -5,11 +5,17 @@ A robust Python system for controlling LEDs and monitoring buttons across multip
 ## Features
 
 - **Multi-device support**: One server Pi (buttons) can communicate with multiple client Pis (LEDs)
-- **MQTT messaging**: Reliable bidirectional communication using MQTT broker
+- **MQTT messaging**: Reliable bidirectional communication with QoS 1 delivery guarantees
+- **Client presence tracking**: Server can detect which clients are online with heartbeat monitoring
+- **Visual status feedback**: LEDs flash to indicate connection problems
+  - Server red LED flashes when MQTT broker is unreachable
+  - Client yellow LED flashes when MQTT connection is lost
+  - Server yellow LED flashes when client heartbeats are lost
 - **Robust deployment**: Systemd services, virtual environment, automated setup
 - **Dual network interfaces**: DHCP + static IP configuration for reliable networking
-- **Graceful error handling**: GPIO polling fallback, connection resilience
-- **Comprehensive logging**: File and systemd journal logging
+- **Advanced GPIO handling**: Per-pin edge detection with polling fallback, flood protection
+- **Production logging**: Optional file logging with rotation, disabled by default for SD card protection
+- **Industrial reliability**: Thread-safe operations, graceful error handling, 24/7 factory operations
 - **Signal handling**: Clean shutdown on SIGINT/SIGTERM
 
 ## Architecture
@@ -200,44 +206,134 @@ cd ~/rpi-director
 
 ## Logging Configuration
 
-**File logging is disabled by default** to prevent SD card overflow. All logs go to console/systemd journal only.
+**🛡️ SD Card Protection: File logging is DISABLED by default** to prevent SD card overflow in factory environments. All logs go to console/systemd journal only.
+
+### Default Logging Behavior
+
+```bash
+# By default - no file logging, WARNING level only
+python3 -m rpi_director --mode server
+# Output: "File logging disabled (default). Set RPI_DIRECTOR_ENABLE_FILE_LOGGING=1 to enable."
+```
 
 ### Enable File Logging (Optional)
 
-To enable file logging with automatic rotation:
+For troubleshooting or development, enable file logging with automatic rotation:
 
 ```bash
 # Enable file logging with rotation (10MB files, 3 backups = 30MB max)
 export RPI_DIRECTOR_ENABLE_FILE_LOGGING=1
+export RPI_DIRECTOR_LOG_LEVEL=INFO
 
 # Run the service
 python3 -m rpi_director --mode server
+# Output: "File logging enabled: 10MB per file, 3 backups (30MB total)"
 ```
 
-### Configure Log Level
+### Production Log Levels
 
 ```bash
-# Set log level (default: WARNING for production)
+# Production (default) - minimal logging
+export RPI_DIRECTOR_LOG_LEVEL=WARNING
+
+# Troubleshooting - detailed logging  
 export RPI_DIRECTOR_LOG_LEVEL=INFO
 
-# Available levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
-python3 -m rpi_director --mode server
+# Development - verbose logging
+export RPI_DIRECTOR_LOG_LEVEL=DEBUG
 ```
 
-### Systemd Service with Logging
+### Systemd Service Configuration
 
-To enable file logging in systemd services, edit the service files:
+The systemd services are pre-configured with safe defaults:
 
-```bash
-sudo systemctl edit rpi-director.service
-```
-
-Add:
 ```ini
-[Service]
-Environment=RPI_DIRECTOR_ENABLE_FILE_LOGGING=1
+# Current service configuration (safe for production)
+Environment=RPI_DIRECTOR_ENABLE_FILE_LOGGING=0
 Environment=RPI_DIRECTOR_LOG_LEVEL=WARNING
 ```
+
+To enable file logging permanently:
+
+```bash
+# Edit service file
+sudo nano /etc/systemd/system/rpi-director.service
+
+# Change to:
+Environment=RPI_DIRECTOR_ENABLE_FILE_LOGGING=1
+Environment=RPI_DIRECTOR_LOG_LEVEL=INFO
+
+# Reload and restart
+sudo systemctl daemon-reload
+sudo systemctl restart rpi-director.service
+```
+
+### View Logs
+
+```bash
+# Console logs (always available)
+sudo journalctl -u rpi-director.service -f
+sudo journalctl -u rpi-director-client.service -f
+
+# File logs (if enabled)
+tail -f /home/boston/rpi-director/rpi_director.log
+```
+
+## Recent Improvements (August 2025)
+
+### 🔧 Critical Bug Fixes
+- **MQTT v2 Compatibility**: Fixed paho-mqtt 2.x constructor to use proper keyword arguments
+- **Per-Pin Edge Detection**: Eliminated global failure mode - individual pins fall back to polling if edge detection fails
+- **QoS Reliability**: All MQTT subscriptions now use QoS 1 for guaranteed delivery
+- **Reconnection Protection**: Prevents conflicts between manual and automatic MQTT reconnection
+- **Button Flood Protection**: 300ms cooldown prevents hardware bounce from disrupting factory operations
+
+### 🏭 Industrial Enhancements
+- **SD Card Protection**: File logging disabled by default with optional rotation when enabled
+- **Hardware Diagnostics**: Comprehensive startup logging shows pin assignments and edge detection status
+- **Active-Low Documentation**: Clear documentation of button wiring assumptions (HIGH=not pressed, LOW=pressed)
+- **Thread Safety**: Enhanced GPIO operations with proper locking for concurrent access
+- **Production Logging**: WARNING level default with configurable verbosity via environment variables
+
+### 📊 Factory Operation Features
+- **Hybrid Button Monitoring**: Automatic fallback from edge detection to polling per-pin basis
+- **Status Indicator System**: Red/Green/Yellow LED coordination for multi-station factory workflows
+- **Client Presence Tracking**: Real-time heartbeat monitoring with 3-second intervals
+- **Visual Connection Feedback**: LED status indicators for immediate troubleshooting
+  - Server red LED flashes (every 3s) when MQTT broker is unreachable
+  - Client yellow LED flashes (every 3s) when MQTT connection is lost  
+  - Server yellow LED flashes (every 3s) when client heartbeats are missing
+
+## Status Feedback System
+
+The system provides immediate visual feedback for connection and communication issues:
+
+### Server Status Indicators
+
+**Red LED Flashing**: MQTT broker connection lost
+- **Cause**: Mosquitto service stopped, network issues, or broker misconfiguration
+- **Pattern**: Quick flash (0.2s on, 2.8s off) every 3 seconds
+- **Resolution**: Check `sudo systemctl status mosquitto` and network connectivity
+
+**Yellow LED Flashing**: One or more clients are offline
+- **Cause**: Client Pi powered off, network disconnected, or client service stopped
+- **Pattern**: Quick flash (0.2s on, 2.8s off) every 3 seconds
+- **Resolution**: Check client Pi status and network connectivity
+
+### Client Status Indicators  
+
+**Yellow LED Flashing**: MQTT broker connection lost
+- **Cause**: Network issues, server Pi offline, or incorrect broker IP configuration
+- **Pattern**: Quick flash (0.2s on, 2.8s off) every 3 seconds
+- **Resolution**: Check network connectivity to server Pi and MQTT broker status
+
+### Normal Operation
+- **No flashing LEDs**: All connections healthy
+- **Solid LEDs**: Current system state (red/green modes, client yellow states)
+- **Heartbeat interval**: Clients send presence updates every 3 seconds
+- **Timeout threshold**: Server considers client offline after 30 seconds without heartbeat
+- **Reliable Messaging**: QoS 1 ensures critical status updates aren't lost on factory networks
+- **24/7 Operation**: Robust error handling and automatic recovery for continuous factory use
 
 ## Troubleshooting
 
@@ -273,9 +369,9 @@ ping 192.168.1.100  # From client to server
 
 ### Service Debugging
 
-**View detailed logs:**
+**View system logs:**
 ```bash
-# Server logs
+# Server logs (systemd only - no file logging by default)
 sudo journalctl -u rpi-director.service -f
 
 # Client logs  
@@ -285,14 +381,31 @@ sudo journalctl -u rpi-director-client.service -f
 sudo journalctl -u mosquitto -f
 ```
 
+**Enable detailed logging for debugging:**
+```bash
+# Temporarily enable file logging and debug level
+sudo systemctl edit rpi-director.service
+
+# Add these lines in the editor:
+[Service]
+Environment="RPI_DIRECTOR_ENABLE_FILE_LOGGING=1"
+Environment="RPI_DIRECTOR_LOG_LEVEL=DEBUG"
+
+# Restart to apply changes
+sudo systemctl restart rpi-director.service
+
+# View the log file
+tail -f ~/rpi-director/rpi_director.log
+```
+
 **Test manual execution:**
 ```bash
 # Stop service first
 sudo systemctl stop rpi-director.service
 
-# Run manually with debug output
+# Run manually with debug output and logging
 cd ~/rpi-director
-~/rpi-director-venv/bin/python rpi_director.py --mode server --debug
+RPI_DIRECTOR_LOG_LEVEL=DEBUG RPI_DIRECTOR_ENABLE_FILE_LOGGING=1 ~/rpi-director-venv/bin/python rpi_director.py --mode server
 ```
 
 ## Firewall Configuration
