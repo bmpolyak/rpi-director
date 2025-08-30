@@ -16,7 +16,7 @@ StandardError=journal
 
 # Logging configuration - file logging disabled by default to protect SD card
 Environment=RPI_DIRECTOR_ENABLE_FILE_LOGGING=0
-Environment=RPI_DIRECTOR_LOG_LEVEL=WARNING
+Environment=RPI_DIRECTOR_LOG_LEVEL=DEBUG
 
 # To enable file logging, change RPI_DIRECTOR_ENABLE_FILE_LOGGING=1
 

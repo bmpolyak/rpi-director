@@ -88,6 +88,7 @@ class GPIOManager:
             logger.info(f"LED pins: {self.led_pins}")
             logger.info(f"Edge detection enabled: {self.use_edge_detection}")
             logger.info(f"GPIO available: {HAS_GPIO}")
+            logger.info(f"RPi.GPIO module: {GPIO}")
             if not HAS_GPIO:
                 logger.warning("Running in MOCK GPIO mode - no actual hardware control")
             
@@ -137,16 +138,21 @@ class GPIOManager:
         
         for color, pin in self.button_pins.items():
             # Clean up any existing state for this pin (critical for edge detection)
+            logger.debug(f"Cleaning up GPIO pin {pin} ({color}) before setup")
             try:
                 GPIO.remove_event_detect(pin)
+                logger.debug(f"Removed existing event detection for pin {pin}")
             except RuntimeError:
+                logger.debug(f"No existing event detection for pin {pin}")
                 pass  # No event detection was active
             except Exception as e:
                 logger.debug(f"Warning during pin {pin} event cleanup: {e}")
             
             try:
                 GPIO.cleanup(pin)
+                logger.debug(f"Cleaned up pin {pin}")
             except RuntimeWarning:
+                logger.debug(f"Normal cleanup warning for pin {pin}")
                 pass  # Normal cleanup warning, not an error
             except Exception as e:
                 logger.debug(f"Warning during pin {pin} cleanup: {e}")
@@ -164,7 +170,7 @@ class GPIOManager:
                     self.edge_pins.add(pin)
                     logger.info(f"Setup button {color} on GPIO pin {pin} with edge detection")
                 except Exception as e:
-                    logger.warning(f"Edge detection failed for pin {pin} ({color}): {e}, will use polling for this pin")
+                    logger.warning(f"Edge detection failed for pin {pin} ({color}): {type(e).__name__}: {e}, will use polling for this pin")
                     # Don't disable global edge detection, just exclude this pin
                     try:
                         GPIO.remove_event_detect(pin)
