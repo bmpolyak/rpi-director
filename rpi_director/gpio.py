@@ -73,6 +73,12 @@ class GPIOManager:
             # Suppress GPIO warnings for cleaner output
             GPIO.setwarnings(False)
             
+            # Clean up any existing GPIO state first (critical for edge detection)
+            try:
+                GPIO.cleanup()
+            except Exception as e:
+                logger.debug(f"GPIO cleanup during init: {e}")
+            
             # Ensure clean GPIO state
             GPIO.setmode(GPIO.BCM)
             
@@ -130,6 +136,21 @@ class GPIOManager:
         logger.info("Setting up buttons with active-low assumption (HIGH=not pressed, LOW=pressed)")
         
         for color, pin in self.button_pins.items():
+            # Clean up any existing state for this pin (critical for edge detection)
+            try:
+                GPIO.remove_event_detect(pin)
+            except RuntimeError:
+                pass  # No event detection was active
+            except Exception as e:
+                logger.debug(f"Warning during pin {pin} event cleanup: {e}")
+            
+            try:
+                GPIO.cleanup(pin)
+            except RuntimeWarning:
+                pass  # Normal cleanup warning, not an error
+            except Exception as e:
+                logger.debug(f"Warning during pin {pin} cleanup: {e}")
+            
             GPIO.setup(pin, GPIO.IN, pull_up_down=GPIO.PUD_UP)
             self.button_states[color] = GPIO.HIGH  # Not pressed initially (active low)
             self.last_button_press[color] = 0  # For debouncing
