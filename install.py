@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-Raspberry Pi LED Director Installation Script
+Raspberry Pi LED Director Installa    print("\n🚀 Setting up Python virtual environment...")
+    
+    # Install required system packages
+    if not run_command("apt update", "Updating package list"):
+        return Falsept
 
 This script sets up the environment and systemd services for the LED Director.
 It creates a virtual environment, installs dependencies, and configures systemd services.
@@ -366,9 +370,9 @@ def main():
     
     success = True
     
-    # Step 1: Setup system packages
+    # Step 1: Setup virtual environment and dependencies
     if success:
-        success = setup_system_packages(user_home, real_user, args.mode)
+        success = setup_venv(user_home, real_user, args.mode)
     
     # Step 2: Setup GPIO permissions
     if success:
