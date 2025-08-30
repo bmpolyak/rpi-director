@@ -64,11 +64,44 @@ def setup_system_packages(user_home, real_user, mode):
     if not run_command("apt update", "Updating package list"):
         return False
     
+    # Check for conflicting GPIO libraries and remove them
+    print("🔍 Checking for conflicting GPIO libraries...")
+    
+    # Check if old RPi.GPIO is installed
+    rpi_gpio_installed = False
+    try:
+        result = subprocess.run("dpkg -l | grep python3-rpi.gpio", shell=True, capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip():
+            rpi_gpio_installed = True
+            print("  ⚠️  Found python3-rpi.gpio (old library) - will remove")
+    except Exception:
+        pass
+    
+    # Check if lgpio is installed
+    lgpio_installed = False
+    try:
+        result = subprocess.run("dpkg -l | grep python3-rpi-lgpio", shell=True, capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip():
+            lgpio_installed = True
+            print("  ✅ Found python3-rpi-lgpio (preferred library)")
+    except Exception:
+        pass
+    
+    # Remove conflicting packages if needed
+    if rpi_gpio_installed and lgpio_installed:
+        print("  🔄 Both GPIO libraries found - removing old RPi.GPIO to avoid conflicts")
+        if not run_command("apt remove -y python3-rpi.gpio rpi.gpio-common", "Removing conflicting python3-rpi.gpio"):
+            print("     ⚠️  Could not remove old GPIO library - continuing anyway")
+    elif rpi_gpio_installed and not lgpio_installed:
+        print("  🔄 Removing old python3-rpi.gpio and installing modern python3-rpi-lgpio")
+        if not run_command("apt remove -y python3-rpi.gpio rpi.gpio-common", "Removing old python3-rpi.gpio"):
+            print("     ⚠️  Could not remove old GPIO library - continuing anyway")
+    
     # Install Python and required system packages
     packages = [
         "python3",
-        "python3-pip",
-        "python3-rpi.gpio",  # System RPi.GPIO (0.7.2 - works with edge detection)
+        "python3-pip", 
+        "python3-rpi-lgpio",  # Modern GPIO library (preferred)
         "python3-paho-mqtt",  # System paho-mqtt
         "python3-setuptools"
     ]
@@ -80,6 +113,17 @@ def setup_system_packages(user_home, real_user, mode):
     package_list = " ".join(packages)
     if not run_command(f"apt install -y {package_list}", "Installing system packages"):
         return False
+    
+    # Verify the correct GPIO library is installed
+    print("🔍 Verifying GPIO library installation...")
+    try:
+        result = subprocess.run("dpkg -l | grep python3-rpi-lgpio", shell=True, capture_output=True, text=True)
+        if result.returncode == 0 and result.stdout.strip():
+            print("  ✅ python3-rpi-lgpio installed successfully")
+        else:
+            print("  ⚠️  python3-rpi-lgpio may not be installed properly")
+    except Exception as e:
+        print(f"  ⚠️  Could not verify GPIO library: {e}")
     
     # Enable and start MQTT broker on server
     if mode == "server":
