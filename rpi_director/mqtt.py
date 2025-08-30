@@ -80,6 +80,15 @@ class MQTTManager:
             self.mqtt_client.on_disconnect = self._on_disconnect
             self.mqtt_client.on_message = self._on_message
             
+            # Configure authentication if provided
+            username = self.mqtt_settings.get('username')
+            password = self.mqtt_settings.get('password')
+            if username:
+                logger.info(f"Using MQTT authentication for user: {username}")
+                self.mqtt_client.username_pw_set(username, password)
+            else:
+                logger.info("Using anonymous MQTT connection (no authentication)")
+            
             # Connect to broker
             broker_host = self.mqtt_settings['broker_host']
             broker_port = self.mqtt_settings['broker_port']

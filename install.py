@@ -44,6 +44,43 @@ def run_command(command, description, check=True):
             print(f"   Error output: {e.stderr}")
         return False
 
+def configure_mosquitto():
+    """Configure Mosquitto to allow anonymous connections for local development."""
+    mosquitto_conf = "/etc/mosquitto/mosquitto.conf"
+    local_conf = "/etc/mosquitto/conf.d/99-local.conf"
+    
+    try:
+        # Create local configuration to allow anonymous access
+        local_config = """# Local development configuration
+# Allow anonymous connections (no authentication required)
+allow_anonymous true
+
+# Enable local listeners
+listener 1883
+protocol mqtt
+"""
+        
+        print("🔧 Configuring Mosquitto for anonymous access...")
+        
+        # Create conf.d directory if it doesn't exist
+        os.makedirs("/etc/mosquitto/conf.d", exist_ok=True)
+        
+        # Write local configuration
+        with open(local_conf, "w") as f:
+            f.write(local_config)
+            
+        print(f"   ✅ Created {local_conf}")
+        
+        # Stop mosquitto if it's running to reload config
+        run_command("systemctl stop mosquitto", "Stopping Mosquitto for config reload", check=False)
+        
+        return True
+        
+    except Exception as e:
+        print(f"   ⚠️  Failed to configure Mosquitto: {e}")
+        print("   You may need to configure Mosquitto authentication manually")
+        return True  # Don't fail the entire installation for this
+
 def check_root():
     """Check if running as root (needed for systemd operations)."""
     if os.geteuid() != 0:
@@ -93,6 +130,10 @@ def setup_venv(user_home, real_user, mode):
     
     # Enable and start MQTT broker on server
     if mode == "server":
+        # Configure Mosquitto for anonymous access
+        if not configure_mosquitto():
+            return False
+            
         if not run_command("systemctl enable mosquitto", "Enabling MQTT broker"):
             return False
         if not run_command("systemctl start mosquitto", "Starting MQTT broker"):
