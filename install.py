@@ -54,56 +54,29 @@ def get_real_user():
     else:
         return pwd.getpwuid(os.getuid()).pw_name
 
-def setup_system_packages(user_home, real_user, mode):
-    """Install system packages instead of using virtual environment."""
+def setup_venv(user_home, real_user, mode):
+    """Create virtual environment and install dependencies."""
+    venv_path = user_home / "rpi-director-venv"
     script_dir = user_home / "rpi-director"
     
-    print("\n🚀 Installing system packages...")
+    print("\n� Setting up Python virtual environment...")
+    
+    # First, remove any conflicting system packages
+    print("🧹 Removing conflicting system GPIO packages...")
+    run_command("apt remove -y python3-rpi.gpio python3-rpi-lgpio rpi.gpio-common", "Removing system GPIO packages", check=False)
     
     # Install required system packages
     if not run_command("apt update", "Updating package list"):
         return False
     
-    # Check for conflicting GPIO libraries and remove them
-    print("🔍 Checking for conflicting GPIO libraries...")
-    
-    # Check if old RPi.GPIO is installed
-    rpi_gpio_installed = False
-    try:
-        result = subprocess.run("dpkg -l | grep python3-rpi.gpio", shell=True, capture_output=True, text=True)
-        if result.returncode == 0 and result.stdout.strip():
-            rpi_gpio_installed = True
-            print("  ⚠️  Found python3-rpi.gpio (old library) - will remove")
-    except Exception:
-        pass
-    
-    # Check if lgpio is installed
-    lgpio_installed = False
-    try:
-        result = subprocess.run("dpkg -l | grep python3-rpi-lgpio", shell=True, capture_output=True, text=True)
-        if result.returncode == 0 and result.stdout.strip():
-            lgpio_installed = True
-            print("  ✅ Found python3-rpi-lgpio (preferred library)")
-    except Exception:
-        pass
-    
-    # Remove conflicting packages if needed
-    if rpi_gpio_installed and lgpio_installed:
-        print("  🔄 Both GPIO libraries found - removing old RPi.GPIO to avoid conflicts")
-        if not run_command("apt remove -y python3-rpi.gpio rpi.gpio-common", "Removing conflicting python3-rpi.gpio"):
-            print("     ⚠️  Could not remove old GPIO library - continuing anyway")
-    elif rpi_gpio_installed and not lgpio_installed:
-        print("  🔄 Removing old python3-rpi.gpio and installing modern python3-rpi-lgpio")
-        if not run_command("apt remove -y python3-rpi.gpio rpi.gpio-common", "Removing old python3-rpi.gpio"):
-            print("     ⚠️  Could not remove old GPIO library - continuing anyway")
-    
-    # Install Python and required system packages
+    # Install Python development tools and dependencies for RPi.GPIO compilation
     packages = [
-        "python3",
-        "python3-pip", 
-        "python3-rpi-lgpio",  # Modern GPIO library (preferred)
-        "python3-paho-mqtt",  # System paho-mqtt
-        "python3-setuptools"
+        "python3-venv",
+        "python3-full", 
+        "python3-dev",
+        "python3-pip",
+        "build-essential",
+        "gcc"
     ]
     
     # Add MQTT broker for server mode
@@ -111,19 +84,8 @@ def setup_system_packages(user_home, real_user, mode):
         packages.extend(["mosquitto", "mosquitto-clients"])
     
     package_list = " ".join(packages)
-    if not run_command(f"apt install -y {package_list}", "Installing system packages"):
+    if not run_command(f"apt install -y {package_list}", "Installing system packages and dependencies"):
         return False
-    
-    # Verify the correct GPIO library is installed
-    print("🔍 Verifying GPIO library installation...")
-    try:
-        result = subprocess.run("dpkg -l | grep python3-rpi-lgpio", shell=True, capture_output=True, text=True)
-        if result.returncode == 0 and result.stdout.strip():
-            print("  ✅ python3-rpi-lgpio installed successfully")
-        else:
-            print("  ⚠️  python3-rpi-lgpio may not be installed properly")
-    except Exception as e:
-        print(f"  ⚠️  Could not verify GPIO library: {e}")
     
     # Enable and start MQTT broker on server
     if mode == "server":
@@ -133,15 +95,30 @@ def setup_system_packages(user_home, real_user, mode):
             return False
         print("✅ MQTT broker (Mosquitto) installed and started")
     
-    # Install the rpi_director package in development mode using system Python
-    install_pkg_cmd = f"cd {script_dir} && python3 -m pip install -e . --break-system-packages"
+    # Create virtual environment as the real user
+    venv_cmd = f"sudo -u {real_user} python3 -m venv {venv_path}"
+    if not run_command(venv_cmd, f"Creating virtual environment at {venv_path}"):
+        return False
+    
+    # Upgrade pip and install wheel to avoid legacy setup.py issues
+    upgrade_cmd = f"sudo -u {real_user} {venv_path}/bin/pip install --upgrade pip wheel setuptools"
+    if not run_command(upgrade_cmd, "Upgrading pip and installing wheel support"):
+        return False
+    
+    # Install requirements
+    pip_cmd = f"sudo -u {real_user} {venv_path}/bin/pip install -r {script_dir}/requirements.txt"
+    if not run_command(pip_cmd, "Installing Python dependencies"):
+        return False
+
+    # Install the rpi_director package in development mode
+    install_pkg_cmd = f"cd {script_dir} && sudo -u {real_user} {venv_path}/bin/pip install -e ."
     if not run_command(install_pkg_cmd, "Installing rpi_director package in development mode"):
-        print("⚠️  Package installation failed, trying alternative approach...")
+        print("⚠️  Package installation failed, trying legacy approach...")
         # Fallback: just make sure the module can be found via PYTHONPATH
         pythonpath_cmd = f"echo 'export PYTHONPATH={script_dir}:$PYTHONPATH' >> /home/{real_user}/.bashrc"
         run_command(pythonpath_cmd, "Adding project to PYTHONPATH", check=False)
 
-    print("✅ System packages installed successfully")
+    print(f"✅ Virtual environment created at {venv_path}")
     return True
 
 def setup_gpio_permissions(real_user):
