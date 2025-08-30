@@ -1,474 +1,349 @@
-# Raspberry Pi LED Director
+# Raspberry Pi LED Director (MQTT)
 
-A Python script that runs in the background on a Raspberry Pi and manages LED states based on button presses or OSC (Open Sound Control) network commands.
+A robust Python system for controlling LEDs and monitoring buttons across multiple Raspberry Pi devices using MQTT messaging. The system supports both server (button monitoring) and client (LED control) modes with bidirectional communication.
 
 ## Features
 
-### Server Mode
-- Listens for button presses on configurable GPIO pins
-- Controls corresponding LEDs on configurable GPIO pins
-- Sends OSC commands to multiple client devices over the network
-- Red LED lights up by default on startup
-- Automatic fallback to polling if GPIO edge detection fails
+- **Multi-device support**: One server Pi (buttons) can communicate with multiple client Pis (LEDs)
+- **MQTT messaging**: Reliable bidirectional communication using MQTT broker
+- **Robust deployment**: Systemd services, virtual environment, automated setup
+- **Dual network interfaces**: DHCP + static IP configuration for reliable networking
+- **Graceful error handling**: GPIO polling fallback, connection resilience
+- **Comprehensive logging**: File and systemd journal logging
+- **Signal handling**: Clean shutdown on SIGINT/SIGTERM
 
-### Client Mode
-- Listens for OSC commands over the network
-- Controls local LEDs based on received commands
-- Red LED lights up by default on startup
-- LEDs stay lit until another command is received
+## Architecture
 
-### Common Features
-- Only one LED is lit at a time
-- Runs as a background service
-- Configurable pin assignments and network settings via JSON settings file
-- Robust GPIO handling with automatic polling fallback
-- Logging support
-- Graceful shutdown handling
+### Server Mode (Button Monitoring)
+- Monitors physical buttons on GPIO pins 2, 3, 4
+- Controls corresponding LEDs on GPIO pins 10, 9, 11
+- Publishes button press events to MQTT broker
+- Runs integrated Mosquitto MQTT broker
 
-## Quick Setup
-
-**🚀 Automated Installation (Recommended)**
-
-Copy the project to your Raspberry Pi and run the setup script:
-
-```bash
-# Copy project files to Raspberry Pi
-scp -r rpi-director/ your-user@your-pi-ip:/home/your-user/
-
-# SSH to your Pi and run setup
-ssh your-user@your-pi-ip
-cd ~/rpi-director
-
-# For server mode (listens to buttons, sends OSC)
-sudo python3 setup.py --mode server
-
-# For client mode (listens to OSC, controls LEDs)  
-sudo python3 setup.py --mode client
-```
-
-**🌐 Network Configuration (Recommended for Multi-Pi Setup)**
-
-For reliable OSC communication between multiple Raspberry Pis, set up static IP addresses on virtual interfaces:
-
-```bash
-# On server Pi (assign static IP 192.168.5.101)
-sudo ./setup-virtual-interface.sh 192.168.5.101
-
-# On client Pi 1 (assign static IP 192.168.5.102)
-sudo ./setup-virtual-interface.sh 192.168.5.102
-
-# On client Pi 2 (assign static IP 192.168.5.103)
-sudo ./setup-virtual-interface.sh 192.168.5.103
-```
-
-This creates a virtual interface (eth0:0) with a static IP while keeping the main interface (eth0) on DHCP for internet access.
-
-**The setup scripts automatically:**
-- ✅ Creates virtual environment (`~/rpi-director-venv`)
-- ✅ Installs all dependencies from `requirements.txt`
-- ✅ Sets up GPIO permissions
-- ✅ Installs and starts systemd service
-- ✅ Tests the installation
-- ✅ (Virtual interface) Creates persistent static IP alias
+### Client Mode (LED Control)
+- Subscribes to MQTT button events
+- Controls LEDs on GPIO pins 10, 9, 11 based on received commands
+- Sends LED status confirmations back to server
+- Connects to remote MQTT broker (server Pi)
 
 ## Hardware Setup
 
-### Default Pin Configuration
-- **Buttons:** Red (GPIO 2), Yellow (GPIO 3), Green (GPIO 4)
-- **LEDs:** Red (GPIO 10), Yellow (GPIO 9), Green (GPIO 11)
+### Server Pi (Button Monitoring)
+- **Buttons**: GPIO 2, 3, 4 (with pull-up resistors)
+- **LEDs**: GPIO 10, 9, 11 (with appropriate resistors)
+- **Network**: Requires static IP for MQTT broker accessibility
 
-### Physical Pin Mapping
-- **Buttons:** Red (Pin 3), Yellow (Pin 5), Green (Pin 7)
-- **LEDs:** Red (Pin 19), Yellow (Pin 21), Green (Pin 23)
+### Client Pis (LED Control)  
+- **LEDs**: GPIO 10, 9, 11 (with appropriate resistors)
+- **Network**: Can use DHCP, but needs access to server's MQTT broker
 
-### Wiring
-1. Connect buttons between the configured GPIO pins and GND
-2. Connect LEDs with appropriate resistors (typically 330Ω) between the configured GPIO pins and GND
-3. Ensure proper grounding for all components
+### Wiring Example
+```
+Button (GPIO 2) ─── [Button] ─── GND
+                 └─ 10kΩ ─── 3.3V
 
-**Note:** If you experience GPIO edge detection issues, the script automatically falls back to reliable button polling.
+LED (GPIO 10) ─── [220Ω Resistor] ─── [LED] ─── GND
+```
 
-## Manual Installation (Alternative)
+## Network Configuration
 
-If you prefer manual setup or the automated script doesn't work:
+The system uses dual network interfaces for reliability:
+- **eth0**: DHCP for internet access and general networking
+- **eth0:static**: Additional static IP for device-to-device communication
 
-1. **Copy files to Raspberry Pi:**
-   ```bash
-   scp -r rpi-director/ your-user@your-pi-ip:/home/your-user/
-   ```
+### Setup Static IP (NetworkManager Compatible)
 
-2. **SSH and create virtual environment:**
-   ```bash
-   ssh your-user@your-pi-ip
-   cd ~/rpi-director
-   
-   # Install system packages
-   sudo apt update
-   sudo apt install python3-venv python3-full
-   
-   # Create virtual environment
-   python3 -m venv ~/rpi-director-venv
-   source ~/rpi-director-venv/bin/activate
-   
-   # Install dependencies
-   pip install -r requirements.txt
-   ```
+Run the included script on each Pi to add a static IP:
 
-3. **Setup GPIO permissions:**
-   ```bash
-   sudo usermod -a -G gpio $USER
-   sudo chown root:gpio /dev/gpiomem
-   sudo chmod g+rw /dev/gpiomem
-   ```
+```bash
+sudo ./setup-networkmanager-static.sh
+```
 
-4. **Test manually:**
-   ```bash
-   # Activate venv and test
-   source ~/rpi-director-venv/bin/activate
-   python rpi_director.py --mode server  # or --mode client
-   ```
+This will:
+- Add a static IP (192.168.1.x) to your existing eth0 interface
+- Keep your current DHCP configuration intact
+- Use NetworkManager-compatible configuration
 
-5. **Install systemd service (optional):**
-   ```bash
-   sudo cp rpi-director.service /etc/systemd/system/        # For server
-   sudo cp rpi-director-client.service /etc/systemd/system/ # For client
-   
-   sudo systemctl daemon-reload
-   sudo systemctl enable rpi-director.service    # or rpi-director-client.service
-   sudo systemctl start rpi-director.service     # or rpi-director-client.service
-   ```
+### Static IP Assignment
+- **Server Pi**: 192.168.1.100
+- **Client Pis**: 192.168.1.101, 192.168.1.102, etc.
+
+## Installation
+
+### Prerequisites
+```bash
+sudo apt update
+sudo apt install git python3 python3-pip
+```
+
+### Clone Repository
+```bash
+cd ~
+git clone <your-repo-url> rpi-director
+cd rpi-director
+```
+
+### Automated Setup
+
+For **server** mode (button monitoring + MQTT broker):
+```bash
+sudo python3 setup.py --mode server
+```
+
+For **client** mode (LED control):
+```bash
+sudo python3 setup.py --mode client
+```
+
+The setup script will:
+1. Install system dependencies (including Mosquitto for server)
+2. Create Python virtual environment
+3. Install Python packages (paho-mqtt, RPi.GPIO)
+4. Configure GPIO permissions
+5. Install and start systemd service
+6. Test the installation
 
 ## Configuration
 
-Edit `settings.json` to configure pins and network settings:
+### settings.json
+
+The system uses `settings.json` for configuration:
 
 ```json
 {
-    "buttons": {
-        "red": 2,
-        "yellow": 3,
-        "green": 4
-    },
-    "leds": {
-        "red": 10,
-        "yellow": 9,
-        "green": 11
-    },
-    "osc": {
-        "server_ip": "0.0.0.0",
-        "server_port": 8001,
-        "client_addresses": [
-            "192.168.5.102:8001",
-            "192.168.5.103:8001",
-            "192.168.5.104:8001"
-        ]
+  "server": {
+    "buttons": [
+      {"name": "red", "pin": 2, "led_pin": 10},
+      {"name": "yellow", "pin": 3, "led_pin": 9},
+      {"name": "green", "pin": 4, "led_pin": 11}
+    ]
+  },
+  "client": {
+    "leds": [
+      {"name": "red", "pin": 10},
+      {"name": "yellow", "pin": 9},
+      {"name": "green", "pin": 11}
+    ]
+  },
+  "mqtt": {
+    "broker_host": "192.168.1.100",
+    "broker_port": 1883,
+    "topics": {
+      "button_press": "rpi/button/{color}",
+      "led_status": "rpi/led/{color}/status",
+      "led_command": "rpi/led/{color}/command"
     }
+  },
+  "logging": {
+    "level": "INFO",
+    "file": "/var/log/rpi_director.log",
+    "max_bytes": 10485760,
+    "backup_count": 5
+  }
 }
 ```
 
-### Configuration Options
-- `buttons`: GPIO pin numbers for button inputs (server mode only)
-- `leds`: GPIO pin numbers for LED outputs
-- `osc.server_ip`: IP address for OSC server to bind to:
-  - `"0.0.0.0"` - Listen on all interfaces (DHCP + static)
-  - `"192.168.5.101"` - Listen only on static IP (recommended)
-- `osc.server_port`: Port for OSC server to listen on (client mode)
-- `osc.client_addresses`: List of static IP:port addresses to send OSC commands to (server mode)
+### MQTT Topics
 
-### Network Configuration Examples
+The system uses the following MQTT topic structure:
+- `rpi/button/{color}`: Button press events (published by server)
+- `rpi/led/{color}/command`: LED control commands (published by server)
+- `rpi/led/{color}/status`: LED status confirmations (published by clients)
 
-**For static IP setup (recommended):**
-```json
-{
-    "osc": {
-        "server_ip": "192.168.5.101",    // Server Pi static IP
-        "server_port": 8001,
-        "client_addresses": [
-            "192.168.5.102:8001",        // Client Pi 1 static IP
-            "192.168.5.103:8001"         // Client Pi 2 static IP
-        ]
-    }
-}
-```
+## Service Management
 
-**For DHCP-only setup:**
-```json
-{
-    "osc": {
-        "server_ip": "0.0.0.0",         // Listen on all interfaces
-        "server_port": 8001,
-        "client_addresses": [
-            "192.168.1.100:8001",       // Update with actual DHCP IPs
-            "192.168.1.101:8001"
-        ]
-    }
-}
-```
-
-**Note:** If you have GPIO edge detection issues, try alternative pin numbers like 17, 27, 22, or 5, 6, 13.
-
-## Usage
-
-### Using the Setup Script (Recommended)
-
-After running `sudo python3 setup.py --mode <server|client>`, your service is automatically installed and running.
-
-**Useful commands provided by setup script:**
+### Check Status
 ```bash
-# Check service status
-sudo systemctl status rpi-director.service          # Server
-sudo systemctl status rpi-director-client.service   # Client
+# Server
+sudo systemctl status rpi-director.service
 
-# View live logs  
-sudo journalctl -u rpi-director.service -f          # Server
-sudo journalctl -u rpi-director-client.service -f   # Client
-
-# Control services
-sudo systemctl stop rpi-director.service            # Stop server
-sudo systemctl start rpi-director.service           # Start server
-sudo systemctl restart rpi-director.service         # Restart server
+# Client  
+sudo systemctl status rpi-director-client.service
 ```
 
-### Manual Testing
-
-**Server Mode** (listens to buttons, sends OSC commands):
+### View Logs
 ```bash
-# Activate virtual environment first
-source ~/rpi-director-venv/bin/activate
-python rpi_director.py --mode server
+# Server
+sudo journalctl -u rpi-director.service -f
+
+# Client
+sudo journalctl -u rpi-director-client.service -f
 ```
 
-**Client Mode** (listens to OSC commands):
+### Control Services
 ```bash
-# Activate virtual environment first
-source ~/rpi-director-venv/bin/activate
-python rpi_director.py --mode client
+# Stop
+sudo systemctl stop rpi-director.service        # Server
+sudo systemctl stop rpi-director-client.service # Client
+
+# Start
+sudo systemctl start rpi-director.service        # Server
+sudo systemctl start rpi-director-client.service # Client
+
+# Restart
+sudo systemctl restart rpi-director.service        # Server
+sudo systemctl restart rpi-director-client.service # Client
 ```
 
-### Manual Service Installation (if not using setup script)
+## Manual Usage
 
-#### Server Mode Service
+Run manually for testing:
+```bash
+# Server mode
+cd ~/rpi-director
+~/rpi-director-venv/bin/python rpi_director.py --mode server
 
-1. Copy the server service file:
-   ```bash
-   sudo cp rpi-director.service /etc/systemd/system/
-   ```
+# Client mode
+cd ~/rpi-director  
+~/rpi-director-venv/bin/python rpi_director.py --mode client
+```
 
-2. Enable and start:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable rpi-director.service
-   sudo systemctl start rpi-director.service
-   ```
+## Logging Configuration
 
-#### Client Mode Service
+**File logging is disabled by default** to prevent SD card overflow. All logs go to console/systemd journal only.
 
-1. Copy the client service file:
-   ```bash
-   sudo cp rpi-director-client.service /etc/systemd/system/
-   ```
+### Enable File Logging (Optional)
 
-2. Enable and start:
-   ```bash
-   sudo systemctl daemon-reload
-   sudo systemctl enable rpi-director-client.service
-   sudo systemctl start rpi-director-client.service
-   ```
-
-## Network Communication
-
-The system uses OSC (Open Sound Control) protocol for network communication:
-
-### OSC Messages
-- `/led/red` - Switch to red LED
-- `/led/yellow` - Switch to yellow LED  
-- `/led/green` - Switch to green LED
-
-### Network Setup Options
-
-#### Option 1: Virtual Interface with Static IPs (Recommended)
-
-Use the included script to set up dual network interfaces:
+To enable file logging with automatic rotation:
 
 ```bash
-# Server Pi
-sudo ./setup-virtual-interface.sh 192.168.5.101
+# Enable file logging with rotation (10MB files, 3 backups = 30MB max)
+export RPI_DIRECTOR_ENABLE_FILE_LOGGING=1
 
-# Client Pi 1  
-sudo ./setup-virtual-interface.sh 192.168.5.102
-
-# Client Pi 2
-sudo ./setup-virtual-interface.sh 192.168.5.103
+# Run the service
+python3 -m rpi_director --mode server
 ```
 
-**Benefits:**
-- ✅ Reliable static IPs for OSC communication
-- ✅ DHCP still works for internet access
-- ✅ No network configuration conflicts
-- ✅ Automatic persistence across reboots
+### Configure Log Level
 
-**Network interfaces after setup:**
-- `eth0`: DHCP IP (e.g., 192.168.1.45) - for internet
-- `eth0:0`: Static IP (e.g., 192.168.5.101) - for OSC
-
-#### Option 2: DHCP Only (Simple but less reliable)
-
-1. Ensure all devices are on the same network
-2. Find each Pi's IP address with `ip addr show eth0`
-3. Update `client_addresses` in `settings.json` with actual IPs
-4. Configure firewall to allow OSC traffic on port 8001
-
-**Note:** DHCP IPs can change, requiring settings.json updates.
-
-### Firewall Configuration
-
-Allow OSC traffic on your chosen port:
 ```bash
-# Ubuntu/Debian
-sudo ufw allow 8001/udp
+# Set log level (default: WARNING for production)
+export RPI_DIRECTOR_LOG_LEVEL=INFO
 
-# Or using iptables
-sudo iptables -A INPUT -p udp --dport 8001 -j ACCEPT
+# Available levels: DEBUG, INFO, WARNING, ERROR, CRITICAL
+python3 -m rpi_director --mode server
 ```
 
-## Operation
+### Systemd Service with Logging
 
-### Server Mode
-1. On startup, the red LED will be lit by default
-2. Press any button (red, yellow, or green) to switch to that color LED
-3. The server will also send OSC commands to all configured client addresses
-4. Only one LED is active at a time locally
+To enable file logging in systemd services, edit the service files:
 
-### Client Mode
-1. On startup, the red LED will be lit by default
-2. The client listens for OSC commands on the configured port
-3. When an OSC command is received, it switches to the corresponding LED
-4. LEDs stay lit until another OSC command is received
-5. Only one LED is active at a time
+```bash
+sudo systemctl edit rpi-director.service
+```
+
+Add:
+```ini
+[Service]
+Environment=RPI_DIRECTOR_ENABLE_FILE_LOGGING=1
+Environment=RPI_DIRECTOR_LOG_LEVEL=WARNING
+```
 
 ## Troubleshooting
 
 ### Common Issues
 
-**"Failed to add edge detection" Error:**
-- This is automatically handled by the script with polling fallback
-- If you see this warning, button polling is being used instead
-- Buttons will still work, just with slightly higher CPU usage
+**MQTT Connection Problems**
+```bash
+# Check if Mosquitto is running on server
+sudo systemctl status mosquitto
 
-**Buttons Not Working:**
-- Check wiring connections
-- Verify pin numbers in `settings.json` match your hardware
-- Try alternative GPIO pins (2, 3, 4 work reliably)
-- Ensure you're in the `gpio` group: `groups $USER`
+# Test MQTT connectivity
+mosquitto_pub -h 192.168.1.100 -t test/topic -m "hello"
+mosquitto_sub -h 192.168.1.100 -t test/topic
+```
 
-**Permission Errors:**
-- Run setup script with sudo: `sudo python3 setup.py --mode server`
-- Or manually: `sudo usermod -a -G gpio $USER` then logout/login
+**GPIO Permission Issues**
+```bash
+# Check if user is in gpio group
+groups $USER
 
-**OSC Network Issues:**
-- Check network connectivity between devices
-- Verify firewall settings allow UDP traffic on port 8001
-- Ensure IP addresses in `settings.json` are correct and reachable
-- Test with: `ping target-ip-address`
-- If using virtual interfaces, verify they're up: `ip addr show eth0:0`
+# If not in gpio group, add and reboot
+sudo usermod -a -G gpio $USER
+```
 
-**Virtual Interface Issues:**
-- Check if interface exists: `ip addr show eth0:0`
-- Check systemd service: `sudo systemctl status virtual-eth.service`
-- Restart virtual interface: `sudo systemctl restart virtual-eth.service`
-- Test connectivity to static IP: `ping 192.168.5.101`
-- Remove virtual interface: `sudo systemctl disable virtual-eth.service && sudo ifconfig eth0:0 down`
+**Network Connectivity**
+```bash
+# Check if static IP is configured
+ip addr show eth0
 
-**Service Won't Start:**
-- Check service status: `sudo systemctl status rpi-director.service`
-- View detailed logs: `sudo journalctl -u rpi-director.service -n 50`
-- Verify virtual environment exists: `ls ~/rpi-director-venv/bin/python`
-- Test manually first: `~/rpi-director-venv/bin/python ~/rpi-director/rpi_director.py --mode server`
+# Test connectivity between Pis
+ping 192.168.1.100  # From client to server
+```
 
-**Python Package Installation Errors:**
-- If `RPi.GPIO` compilation fails during setup, the script automatically tries system packages
-- Missing `Python.h` error means development headers weren't installed
-- The setup script automatically installs required packages: `python3-dev`, `build-essential`
-- If issues persist, manually install: `sudo apt install python3-rpi.gpio python3-osc`
+### Service Debugging
 
-**GPIO Already In Use:**
-- Stop other GPIO services: `sudo systemctl list-units | grep -i gpio`
-- Kill processes using GPIO: `sudo fuser -k /dev/gpiomem`
-- Reboot if necessary
+**View detailed logs:**
+```bash
+# Server logs
+sudo journalctl -u rpi-director.service -f
 
-### Debug Commands
+# Client logs  
+sudo journalctl -u rpi-director-client.service -f
+
+# MQTT broker logs
+sudo journalctl -u mosquitto -f
+```
+
+**Test manual execution:**
+```bash
+# Stop service first
+sudo systemctl stop rpi-director.service
+
+# Run manually with debug output
+cd ~/rpi-director
+~/rpi-director-venv/bin/python rpi_director.py --mode server --debug
+```
+
+## Firewall Configuration
+
+If using a firewall, ensure MQTT port is open:
 
 ```bash
-# Test GPIO pin directly
-sudo python3 -c "
-import RPi.GPIO as GPIO
-GPIO.setmode(GPIO.BCM)
-GPIO.setup(2, GPIO.IN, pull_up_down=GPIO.PUD_UP)
-print('Pin 2 value:', GPIO.input(2))
-GPIO.cleanup()
-"
+# UFW (if using)
+sudo ufw allow 1883/tcp
 
-# Test OSC client
-sudo python3 -c "
-from pythonosc import udp_client
-client = udp_client.SimpleUDPClient('127.0.0.1', 8001)
-client.send_message('/led/yellow', 1)
-print('OSC message sent')
-"
-
-# Check virtual environment
-~/rpi-director-venv/bin/python --version
-~/rpi-director-venv/bin/pip list | grep -E "(osc|GPIO)"
+# Or iptables
+sudo iptables -A INPUT -p tcp --dport 1883 -j ACCEPT
 ```
 
-## File Structure
+## Backup and Restore
 
+### Backup Configuration
+```bash
+tar -czf rpi-director-backup.tar.gz ~/rpi-director/settings.json ~/rpi-director/*.service
 ```
-rpi-director/
-├── rpi_director.py                # Main Python script
-├── settings.json                  # Pin and network configuration
-├── requirements.txt               # Python dependencies
-├── setup.py                      # Automated setup script
-├── setup-virtual-interface.sh    # Virtual interface setup script
-├── gpio_test.py                  # GPIO pin testing utility
-├── rpi-director.service          # Systemd service file (server mode)
-├── rpi-director-client.service   # Systemd service file (client mode)
-├── NETWORK-SETUP.md              # Network configuration guide
-└── README.md                     # This file
+
+### Restore on New Pi
+```bash
+# After running setup.py, restore settings
+tar -xzf rpi-director-backup.tar.gz -C /
+sudo systemctl restart rpi-director.service  # or rpi-director-client.service
 ```
 
 ## Development
 
-### Testing Virtual Interface Setup
-Test the virtual interface script on your development machine:
-```bash
-# Test IP validation (will fail safely on non-Pi systems)
-sudo ./setup-virtual-interface.sh 192.168.5.101
-```
+### Adding New Button/LED Colors
 
-### Testing GPIO Pins
-Use the included test utility to verify GPIO pins work:
-```bash
-source ~/rpi-director-venv/bin/activate
-sudo python gpio_test.py
-```
+1. Update `settings.json` with new pin configurations
+2. The system automatically handles new configurations on restart
+3. MQTT topics are generated dynamically based on color names
 
-This will test each configured pin individually and suggest alternatives if any fail.
+### Extending Functionality
 
-### Logging
-- **Service logs**: `sudo journalctl -u rpi-director.service -f`
-- **Manual run**: Logs appear in console and `./rpi-director.log`
-- **Systemd service**: Logs to systemd journal
+The modular design allows easy extension:
+- **MQTTServer**: Handles button monitoring and MQTT publishing
+- **MQTTClient**: Handles MQTT subscription and LED control  
+- **GPIOManager**: Manages all GPIO operations
+- **Settings**: Handles configuration loading and validation
 
-### Virtual Environment
-All Python dependencies are isolated in `~/rpi-director-venv/`:
-```bash
-# Activate environment
-source ~/rpi-director-venv/bin/activate
+## License
 
-# Install additional packages
-pip install package-name
+[Add your license here]
 
-# Deactivate
-deactivate
-```
+## Support
+
+For issues and questions:
+1. Check the troubleshooting section above
+2. Review systemd logs for error details
+3. Test components individually (GPIO, MQTT, network)

@@ -1,21 +1,33 @@
 {
-    "buttons": {
+    "server_buttons": {
         "red": 2,
-        "yellow": 3,
-        "green": 4
+        "green": 3,
+        "clear": 4
     },
-    "leds": {
+    "server_leds": {
         "red": 10,
-        "yellow": 9,
-        "green": 11
+        "green": 9,
+        "yellow_client1": 11,
+        "yellow_client2": 5,
+        "yellow_client3": 6
     },
-    "osc": {
-        "server_ip": "0.0.0.0",
-        "server_port": 8001,
-        "client_addresses": [
-            "192.168.5.102:8001",
-            "192.168.5.103:8001",
-            "192.168.5.104:8001"
-        ]
+    "client_buttons": {
+        "yellow": 2
+    },
+    "client_leds": {
+        "red": 10,
+        "green": 9,
+        "yellow": 11
+    },
+    "clients": [
+        "client1",
+        "client2", 
+        "client3"
+    ],
+    "mqtt": {
+        "broker_host": "192.168.5.101",
+        "broker_port": 1883,
+        "keepalive": 60,
+        "client_id_prefix": "led_director"
     }
 }

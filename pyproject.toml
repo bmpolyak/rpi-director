@@ -1,0 +1,45 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "rpi-director"
+version = "1.0.0"
+description = "Raspberry Pi LED Director - MQTT Edition"
+authors = [
+    {name = "GitHub Copilot", email = "noreply@github.com"}
+]
+readme = "README.md"
+license = {file = "LICENSE"}
+requires-python = ">=3.7"
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Topic :: System :: Hardware",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.7",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+]
+dependencies = [
+    "paho-mqtt>=1.6.0",
+    "RPi.GPIO>=0.7.0; platform_machine == 'armv7l' or platform_machine == 'aarch64'",
+]
+
+[project.urls]
+Homepage = "https://github.com/bmpolyak/rpi-director"
+Repository = "https://github.com/bmpolyak/rpi-director"
+Issues = "https://github.com/bmpolyak/rpi-director/issues"
+
+[project.scripts]
+rpi-director = "rpi_director.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["rpi_director*"]
+
+[tool.setuptools.package-data]
+rpi_director = ["*.json"]

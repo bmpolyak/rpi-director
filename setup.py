@@ -4,6 +4,8 @@ Raspberry Pi LED Director Setup Script
 
 This script sets up the environment and systemd services for the LED Director.
 It creates a virtual environment, installs dependencies, and configures systemd services.
+
+Updated for modular package structure.
 """
 
 import subprocess
@@ -48,7 +50,7 @@ def get_real_user():
     else:
         return pwd.getpwuid(os.getuid()).pw_name
 
-def setup_venv(user_home, real_user):
+def setup_venv(user_home, real_user, mode):
     """Create virtual environment and install dependencies."""
     venv_path = user_home / "rpi-director-venv"
     script_dir = user_home / "rpi-director"
@@ -68,9 +70,22 @@ def setup_venv(user_home, real_user):
         "build-essential",
         "gcc"
     ]
+    
+    # Add MQTT broker for server mode
+    if mode == "server":
+        packages.extend(["mosquitto", "mosquitto-clients"])
+    
     package_list = " ".join(packages)
-    if not run_command(f"apt install -y {package_list}", "Installing Python development tools and dependencies"):
+    if not run_command(f"apt install -y {package_list}", "Installing system packages and dependencies"):
         return False
+    
+    # Enable and start MQTT broker on server
+    if mode == "server":
+        if not run_command("systemctl enable mosquitto", "Enabling MQTT broker"):
+            return False
+        if not run_command("systemctl start mosquitto", "Starting MQTT broker"):
+            return False
+        print("✅ MQTT broker (Mosquitto) installed and started")
     
     # Create virtual environment as the real user
     venv_cmd = f"sudo -u {real_user} python3 -m venv {venv_path}"
@@ -115,7 +130,15 @@ def setup_venv(user_home, real_user):
         # Clean up temp file
         temp_requirements.unlink(missing_ok=True)
         print("✅ Used system RPi.GPIO package as fallback")
-    
+
+    # Install the rpi_director package in development mode
+    install_pkg_cmd = f"cd {script_dir} && sudo -u {real_user} {venv_path}/bin/pip install -e ."
+    if not run_command(install_pkg_cmd, "Installing rpi_director package in development mode"):
+        print("⚠️  Package installation failed, trying legacy approach...")
+        # Fallback: just make sure the module can be found via PYTHONPATH
+        pythonpath_cmd = f"echo 'export PYTHONPATH={script_dir}:$PYTHONPATH' >> /home/{real_user}/.bashrc"
+        run_command(pythonpath_cmd, "Adding project to PYTHONPATH", check=False)
+
     print(f"✅ Virtual environment created at {venv_path}")
     return True
 
@@ -185,8 +208,8 @@ def test_installation(mode, user_home, real_user):
     print(f"   Temporarily stopping {service_name} for testing...")
     run_command(f"systemctl stop {service_name}", f"Stopping {service_name} for test", check=False)
     
-    # Test script execution
-    test_cmd = f"sudo -u {real_user} {venv_path}/bin/python {script_dir}/rpi_director.py --mode {mode}"
+    # Test script execution using modular approach
+    test_cmd = f"cd {script_dir} && sudo -u {real_user} {venv_path}/bin/python -m rpi_director --mode {mode}"
     
     print(f"   Running: {test_cmd}")
     print("   (This will run for 5 seconds then stop)")
@@ -217,7 +240,7 @@ def main():
     """Main setup function."""
     parser = argparse.ArgumentParser(description='Setup Raspberry Pi LED Director')
     parser.add_argument('--mode', choices=['server', 'client'], required=True,
-                       help='Install server mode (listens to buttons) or client mode (listens to OSC)')
+                       help='Install server mode (controls LEDs/buttons) or client mode (receives MQTT commands)')
     parser.add_argument('--skip-test', action='store_true',
                        help='Skip the installation test')
     
@@ -248,7 +271,7 @@ def main():
     
     # Step 1: Setup virtual environment
     if success:
-        success = setup_venv(user_home, real_user)
+        success = setup_venv(user_home, real_user, args.mode)
     
     # Step 2: Setup GPIO permissions
     if success:
@@ -273,17 +296,19 @@ def main():
         print(f"  View logs:    sudo journalctl -u {service_name} -f")
         print(f"  Stop service: sudo systemctl stop {service_name}")
         print(f"  Start service: sudo systemctl start {service_name}")
+        print(f"  Manual run:   cd /home/{real_user}/rpi-director && /home/{real_user}/rpi-director-venv/bin/python -m rpi_director --mode {args.mode}")
         
         if args.mode == "server":
             print(f"\n📌 Server Notes:")
             print(f"  - Connect buttons to GPIO pins 2, 3, 4 (red, yellow, green)")
             print(f"  - Connect LEDs to GPIO pins 10, 9, 11 (red, yellow, green)")
-            print(f"  - OSC commands will be sent to clients in settings.json")
+            print(f"  - MQTT commands will be sent to clients configured in settings.json")
+            print(f"  - MQTT broker (Mosquitto) is installed and running")
         else:
             print(f"\n📌 Client Notes:")
             print(f"  - Connect LEDs to GPIO pins 10, 9, 11 (red, yellow, green)")
-            print(f"  - Listening for OSC commands on port 8001")
-            print(f"  - Make sure firewall allows UDP port 8001")
+            print(f"  - Listening for MQTT commands from server")
+            print(f"  - Configure MQTT broker connection in settings.json")
         
         print(f"\n⚠️  Important: If this is the first GPIO setup, you may need to reboot")
         print(f"   or log out and back in for group permissions to take effect.")
