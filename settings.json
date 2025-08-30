@@ -29,8 +29,5 @@
         "broker_port": 1883,
         "keepalive": 60,
         "client_id_prefix": "led_director"
-        // Optional authentication (uncomment if needed):
-        // "username": "your_mqtt_user",
-        // "password": "your_mqtt_password"
     }
 }
