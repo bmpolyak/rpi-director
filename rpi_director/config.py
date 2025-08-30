@@ -102,3 +102,23 @@ class SettingsManager:
     def get_led_pins(self):
         """Get LED pins for current mode."""
         return self.server_leds if self.mode == "server" else self.client_leds
+    
+    @property
+    def mqtt_host(self):
+        """Get MQTT broker host."""
+        return self.mqtt_settings['broker_host']
+    
+    @property
+    def mqtt_port(self):
+        """Get MQTT broker port."""
+        return self.mqtt_settings['broker_port']
+    
+    @property
+    def mqtt_keepalive(self):
+        """Get MQTT keepalive interval."""
+        return self.mqtt_settings.get('keepalive', 60)
+    
+    @property
+    def mqtt_client_id_prefix(self):
+        """Get MQTT client ID prefix."""
+        return self.mqtt_settings.get('client_id_prefix', 'led_director')
