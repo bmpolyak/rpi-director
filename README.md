@@ -98,15 +98,21 @@ cd rpi-director
 
 For **server** mode (button monitoring + MQTT broker):
 ```bash
-sudo python3 setup.py --mode server
+sudo python3 install.py --mode server
 ```
 
 For **client** mode (LED control):
 ```bash
-sudo python3 setup.py --mode client
+sudo python3 install.py --mode client --client-id client1
 ```
 
-The setup script will:
+Additional client examples:
+```bash
+sudo python3 install.py --mode client --client-id client2
+sudo python3 install.py --mode client --client-id client3 --broker-host 192.168.1.100
+```
+
+The installation script will:
 1. Install system dependencies (including Mosquitto for server)
 2. Create Python virtual environment
 3. Install Python packages (paho-mqtt, RPi.GPIO)
@@ -509,7 +515,7 @@ tar -czf rpi-director-backup.tar.gz ~/rpi-director/settings.json ~/rpi-director/
 
 ### Restore on New Pi
 ```bash
-# After running setup.py, restore settings
+# After running install.py, restore settings
 tar -xzf rpi-director-backup.tar.gz -C /
 sudo systemctl restart rpi-director.service  # or rpi-director-client.service
 ```
